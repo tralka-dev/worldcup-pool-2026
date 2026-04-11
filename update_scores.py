@@ -161,18 +161,22 @@ def calculate_scores(picks_rows, advanced_teams):
         count = name_counts[raw_name]
         display_name = raw_name if count == 1 else f"{raw_name} ({count})"
 
-        grp_pts = 0
-        ko_pts  = 0
+        grp_pts   = 0
+        r32_pts   = 0
+        r16_pts   = 0
+        qf_pts    = 0
+        sf_pts    = 0
+        final_pts = 0
         champ_pts = 0
 
-        # --- Group stage + 3rd place (no duplicate check needed, form prevents it) ---
+        # --- Group stage + 3rd place ---
         for rnd, col_start, col_end in [("GROUP", 2, 25), ("3RD", 26, 33)]:
             for col in range(col_start, col_end + 1):
                 team = get_cell(row, col)
                 if team and (rnd, team) in advanced_teams:
                     grp_pts += POINTS[rnd]
 
-        # --- Knockout rounds (R32 onwards) with duplicate protection ---
+        # --- Knockout rounds with duplicate protection per round ---
         knockout_picks = []
         for rnd, col_start, col_end in [("R32", 34, 49), ("R16", 50, 57), ("QF", 58, 61), ("SF", 62, 63), ("FINAL", 64, 65)]:
             for col in range(col_start, col_end + 1):
@@ -180,28 +184,39 @@ def calculate_scores(picks_rows, advanced_teams):
                 if team:
                     knockout_picks.append((rnd, team))
 
-        # Award points only once per team PER ROUND (duplicates within same round = 1 point)
-        scored_round_teams = set()  # tracks (round, team) pairs
+        scored_round_teams = set()
+        round_pts = {"R32": 0, "R16": 0, "QF": 0, "SF": 0, "FINAL": 0}
         for rnd, team in knockout_picks:
             if (rnd, team) in scored_round_teams:
-                continue  # Same team in same round — skip duplicate
+                continue
             scored_round_teams.add((rnd, team))
             if (rnd, team) in advanced_teams:
-                ko_pts += POINTS[rnd]
+                round_pts[rnd] += POINTS[rnd]
+
+        r32_pts   = round_pts["R32"]
+        r16_pts   = round_pts["R16"]
+        qf_pts    = round_pts["QF"]
+        sf_pts    = round_pts["SF"]
+        final_pts = round_pts["FINAL"]
 
         # --- Champion ---
-        champ = get_cell(row, CHAMPION_COL)  # Col BO
-        if champ:
-            if ("WINNER", champ) in advanced_teams:
-                champ_pts += POINTS["WINNER"]
+        champ = get_cell(row, CHAMPION_COL)
+        if champ and ("WINNER", champ) in advanced_teams:
+            champ_pts += POINTS["WINNER"]
+
+        total = grp_pts + r32_pts + r16_pts + qf_pts + sf_pts + final_pts + champ_pts
 
         entries.append({
             "name":     display_name,
             "email":    email,
             "group":    grp_pts,
-            "knockout": ko_pts,
+            "r32":      r32_pts,
+            "r16":      r16_pts,
+            "qf":       qf_pts,
+            "sf":       sf_pts,
+            "final":    final_pts,
             "champion": champ_pts,
-            "total":    grp_pts + ko_pts + champ_pts,
+            "total":    total,
         })
 
     # Sort by total descending
@@ -213,14 +228,18 @@ def update_sheet(service, entries, picks_visible):
     now = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
 
     if picks_visible:
-        header = ["Rank", "Entry Name", "Email", "Group Pts", "Knockout Pts", "Champion Pts", "Total", "Last Updated"]
+        header = ["Rank", "Entry Name", "Email", "Group Pts", "R32 Pts", "R16 Pts", "QF Pts", "SF Pts", "Final Pts", "Champion Pts", "Total", "Last Updated"]
         rows = [
             [
                 i + 1,
                 e["name"],
                 e["email"],
                 e["group"],
-                e["knockout"],
+                e["r32"],
+                e["r16"],
+                e["qf"],
+                e["sf"],
+                e["final"],
                 e["champion"],
                 e["total"],
                 now if i == 0 else ""
@@ -248,6 +267,12 @@ def update_sheet(service, entries, picks_visible):
             header
         ] + rows
 
+    # Clear the sheet first to remove any old data
+    service.spreadsheets().values().clear(
+        spreadsheetId=SPREADSHEET_ID,
+        range="Leaderboard!A1:Z1000"
+    ).execute()
+
     service.spreadsheets().values().update(
         spreadsheetId=SPREADSHEET_ID,
         range="Leaderboard!A1",
@@ -255,8 +280,79 @@ def update_sheet(service, entries, picks_visible):
         body={"values": data}
     ).execute()
 
+    # Apply top 3 colors if picks are visible
+    if picks_visible and len(entries) > 0:
+        apply_top3_colors(service, picks_visible)
+
     status = "PICKS HIDDEN" if not picks_visible else "PICKS VISIBLE"
     print(f"[✓] Leaderboard updated — {len(entries)} entries — {status} — {now}")
+
+
+def apply_top3_colors(service, picks_visible):
+    """Highlight top 3 rows with gold, silver, bronze colors."""
+
+    # Row offsets depend on whether picks are visible or hidden
+    # Visible mode: row 1 = header, rows 2+ = entries
+    # Hidden mode: rows 1-3 = title/note/blank, row 4 = header, rows 5+ = entries
+    if picks_visible:
+        header_row = 0   # 0-indexed
+        first_entry_row = 1
+    else:
+        header_row = 3
+        first_entry_row = 4
+
+    # Colors: gold, silver, bronze
+    colors = [
+        {"red": 1.0,  "green": 0.84, "blue": 0.0},   # Gold
+        {"red": 0.75, "green": 0.75, "blue": 0.75},   # Silver
+        {"red": 0.8,  "green": 0.5,  "blue": 0.2},    # Bronze
+    ]
+
+    requests_body = []
+
+    # First clear all background colors from entry rows
+    requests_body.append({
+        "repeatCell": {
+            "range": {
+                "sheetId": get_leaderboard_sheet_id(service),
+                "startRowIndex": first_entry_row,
+                "endRowIndex": first_entry_row + 100,
+            },
+            "cell": {"userEnteredFormat": {"backgroundColor": {"red": 1, "green": 1, "blue": 1}}},
+            "fields": "userEnteredFormat.backgroundColor"
+        }
+    })
+
+    # Apply gold/silver/bronze to top 3
+    sheet_id = get_leaderboard_sheet_id(service)
+    for i, color in enumerate(colors):
+        row_index = first_entry_row + i
+        requests_body.append({
+            "repeatCell": {
+                "range": {
+                    "sheetId": sheet_id,
+                    "startRowIndex": row_index,
+                    "endRowIndex": row_index + 1,
+                },
+                "cell": {"userEnteredFormat": {"backgroundColor": color}},
+                "fields": "userEnteredFormat.backgroundColor"
+            }
+        })
+
+    service.spreadsheets().batchUpdate(
+        spreadsheetId=SPREADSHEET_ID,
+        body={"requests": requests_body}
+    ).execute()
+    print("[✓] Top 3 colors applied")
+
+
+def get_leaderboard_sheet_id(service):
+    """Get the sheet ID of the Leaderboard tab."""
+    meta = service.spreadsheets().get(spreadsheetId=SPREADSHEET_ID).execute()
+    for sheet in meta["sheets"]:
+        if sheet["properties"]["title"] == "Leaderboard":
+            return sheet["properties"]["sheetId"]
+    return 0
 
 
 def main():
@@ -355,10 +451,10 @@ def test_mode():
     entries = calculate_scores(picks_rows, fake_advanced)
 
     print("\n[→] Calculated scores:")
-    print(f"  {'Rank':<5} {'Name':<25} {'Email':<30} {'Group':>6} {'KO':>5} {'Champ':>6} {'Total':>6}")
-    print("  " + "-" * 85)
+    print(f"  {'Rank':<5} {'Name':<25} {'Email':<30} {'Grp':>5} {'R32':>5} {'R16':>5} {'QF':>5} {'SF':>5} {'Fin':>5} {'Champ':>6} {'Total':>6}")
+    print("  " + "-" * 105)
     for i, e in enumerate(entries):
-        print(f"  {i+1:<5} {e['name']:<25} {e['email']:<30} {e['group']:>6} {e['knockout']:>5} {e['champion']:>6} {e['total']:>6}")
+        print(f"  {i+1:<5} {e['name']:<25} {e['email']:<30} {e['group']:>5} {e['r32']:>5} {e['r16']:>5} {e['qf']:>5} {e['sf']:>5} {e['final']:>5} {e['champion']:>6} {e['total']:>6}")
 
     print("\n[→] Writing test results to Leaderboard tab...")
     update_sheet(service, entries, picks_visible=True)
