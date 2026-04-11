@@ -27,17 +27,19 @@ PICKS_VISIBLE    = os.environ.get("PICKS_VISIBLE", "false").lower() == "true"
 TOURNAMENT_START = datetime(2026, 6, 11, tzinfo=timezone.utc)
 
 POINTS = {
-    "GROUP":    1,
-    "3RD":      1,
-    "R16":      2,
-    "QF":       3,
-    "SF":       4,
-    "FINAL":    5,
-    "WINNER":   7,
+    "GROUP":  1,
+    "3RD":    1,
+    "R32":    2,
+    "R16":    3,
+    "QF":     4,
+    "SF":     5,
+    "FINAL":  6,
+    "WINNER": 7,
 }
 
 ROUND_MAP = {
     "GROUP_STAGE":    "GROUP",
+    "ROUND_OF_32":    "R32",
     "LAST_16":        "R16",
     "QUARTER_FINALS": "QF",
     "SEMI_FINALS":    "SF",
@@ -45,26 +47,29 @@ ROUND_MAP = {
 }
 
 # Picks sheet column layout (0-indexed):
-# Col 0 = Timestamp
-# Col 1 = Entry Name
-# Col 2 = Email Address
-# Col 3..26  = Group stage picks (24 cols, Groups A-L, 1st and 2nd pick each)
-# Col 27..34 = 3rd Place picks (8 cols)
-# Col 35..42 = Round of 16 picks (8 cols)
-# Col 43..46 = Quarter-final picks (4 cols)
-# Col 47..48 = Semi-final picks (2 cols)
-# Col 49..50 = Final picks (2 cols)
-# Col 51     = Champion pick (1 col)
+# Col 0     (A)      = Timestamp
+# Col 1     (B)      = Entry Name
+# Col 2-25  (C-Z)    = Group stage picks (24 cols, Groups A-L, 1st and 2nd pick each)
+# Col 26-33 (AA-AH)  = 3rd Place picks (8 cols)
+# Col 34-49 (AI-AX)  = Round of 32 picks (16 cols)
+# Col 50-57 (AY-BF)  = Round of 16 picks (8 cols)
+# Col 58-61 (BG-BJ)  = Quarter-final picks (4 cols)
+# Col 62-63 (BK-BL)  = Semi-final picks (2 cols)
+# Col 64-65 (BM-BN)  = Final picks (2 cols)
+# Col 66    (BO)     = Champion pick (1 col)
+# Col 67    (BP)     = Email Address
 
 ROUND_COLS = [
-    ("GROUP", 3,  26),   # cols 3-26  = 24 group picks
-    ("3RD",   27, 34),   # cols 27-34 = 8 third place picks
-    ("R16",   35, 42),   # cols 35-42 = 8 round of 16 picks
-    ("QF",    43, 46),   # cols 43-46 = 4 quarter-final picks
-    ("SF",    47, 48),   # cols 47-48 = 2 semi-final picks
-    ("FINAL", 49, 50),   # cols 49-50 = 2 final picks
+    ("GROUP", 2,  25),   # cols 2-25  = 24 group picks (C-Z)
+    ("3RD",   26, 33),   # cols 26-33 = 8 third place picks (AA-AH)
+    ("R32",   34, 49),   # cols 34-49 = 16 round of 32 picks (AI-AX)
+    ("R16",   50, 57),   # cols 50-57 = 8 round of 16 picks (AY-BF)
+    ("QF",    58, 61),   # cols 58-61 = 4 quarter-final picks (BG-BJ)
+    ("SF",    62, 63),   # cols 62-63 = 2 semi-final picks (BK-BL)
+    ("FINAL", 64, 65),   # cols 64-65 = 2 final picks (BM-BN)
 ]
-CHAMPION_COL = 51
+CHAMPION_COL = 66  # Column BO
+EMAIL_COL    = 67  # Column BP
 
 
 def fetch_standings_and_results():
@@ -120,6 +125,10 @@ def fetch_standings_and_results():
             if stage == "FINAL":
                 advanced_teams.add(("FINAL", loser))   # Both finalists get FINAL points
                 advanced_teams.add(("WINNER", winner))  # Champion gets bonus
+            # For R32: both teams that played get R32 credit (they made it out of groups)
+            # Winner advances to R16
+            if stage == "R32":
+                advanced_teams.add(("R32", loser))  # Loser still made it to R32
     except Exception as e:
         print(f"[!] Could not fetch knockout results: {e}")
 
@@ -145,7 +154,7 @@ def calculate_scores(picks_rows, advanced_teams):
         if not raw_name:
             continue
 
-        email = get_cell(row, 2) or ""  # Col C = Email Address
+        email = get_cell(row, EMAIL_COL) or ""  # Col BP = Email Address
 
         # Auto-number duplicate names
         name_counts[raw_name] += 1
@@ -157,16 +166,15 @@ def calculate_scores(picks_rows, advanced_teams):
         champ_pts = 0
 
         # --- Group stage + 3rd place (no duplicate check needed, form prevents it) ---
-        for rnd, col_start, col_end in [("GROUP", 3, 26), ("3RD", 27, 34)]:
+        for rnd, col_start, col_end in [("GROUP", 2, 25), ("3RD", 26, 33)]:
             for col in range(col_start, col_end + 1):
                 team = get_cell(row, col)
                 if team and (rnd, team) in advanced_teams:
                     grp_pts += POINTS[rnd]
 
-        # --- Knockout rounds (R16, QF, SF, FINAL) with duplicate protection ---
-        # Collect all knockout picks first, then score unique teams only
-        knockout_picks = []  # list of (round, team)
-        for rnd, col_start, col_end in [("R16", 35, 42), ("QF", 43, 46), ("SF", 47, 48), ("FINAL", 49, 50)]:
+        # --- Knockout rounds (R32 onwards) with duplicate protection ---
+        knockout_picks = []
+        for rnd, col_start, col_end in [("R32", 34, 49), ("R16", 50, 57), ("QF", 58, 61), ("SF", 62, 63), ("FINAL", 64, 65)]:
             for col in range(col_start, col_end + 1):
                 team = get_cell(row, col)
                 if team:
@@ -182,7 +190,7 @@ def calculate_scores(picks_rows, advanced_teams):
                 ko_pts += POINTS[rnd]
 
         # --- Champion ---
-        champ = get_cell(row, CHAMPION_COL)
+        champ = get_cell(row, CHAMPION_COL)  # Col AY
         if champ and champ not in scored_teams:  # Also check against knockout picks
             if ("WINNER", champ) in advanced_teams:
                 champ_pts += POINTS["WINNER"]
@@ -266,7 +274,7 @@ def main():
 
     picks_rows = service.spreadsheets().values().get(
         spreadsheetId=SPREADSHEET_ID,
-        range="Picks!A1:BQ500"  # Extended to BQ to include Email Address column
+        range="Picks!A1:BP500"  # A through BP to capture all columns including Email
     ).execute().get("values", [])
     print(f"[→] {len(picks_rows) - 1} entries loaded")
 
