@@ -180,18 +180,18 @@ def calculate_scores(picks_rows, advanced_teams):
                 if team:
                     knockout_picks.append((rnd, team))
 
-        # Award points only once per team across all knockout picks
-        scored_teams = set()
+        # Award points only once per team PER ROUND (duplicates within same round = 1 point)
+        scored_round_teams = set()  # tracks (round, team) pairs
         for rnd, team in knockout_picks:
-            if team in scored_teams:
-                continue  # Duplicate — skip
-            scored_teams.add(team)
+            if (rnd, team) in scored_round_teams:
+                continue  # Same team in same round — skip duplicate
+            scored_round_teams.add((rnd, team))
             if (rnd, team) in advanced_teams:
                 ko_pts += POINTS[rnd]
 
         # --- Champion ---
-        champ = get_cell(row, CHAMPION_COL)  # Col AY
-        if champ and champ not in scored_teams:  # Also check against knockout picks
+        champ = get_cell(row, CHAMPION_COL)  # Col BO
+        if champ:
             if ("WINNER", champ) in advanced_teams:
                 champ_pts += POINTS["WINNER"]
 
@@ -286,5 +286,89 @@ def main():
     print("[✓] Done!")
 
 
+def test_mode():
+    """
+    Test mode — uses fake tournament results based on the real picks in the sheet.
+    Pretends that ALL teams the first entry picked actually advanced.
+    This lets you verify column mapping, scoring logic, and Leaderboard output
+    without needing a real API key or waiting for the tournament to start.
+
+    Run with:  python update_scores.py test
+    """
+    print("=" * 60)
+    print("[TEST MODE] Using fake results — no API calls made")
+    print("=" * 60)
+
+    creds = Credentials.from_service_account_info(
+        json.loads(os.environ["GOOGLE_CREDS_JSON"]),
+        scopes=["https://www.googleapis.com/auth/spreadsheets"]
+    )
+    service = build("sheets", "v4", credentials=creds)
+
+    picks_rows = service.spreadsheets().values().get(
+        spreadsheetId=os.environ["SPREADSHEET_ID"],
+        range="Picks!A1:BP500"
+    ).execute().get("values", [])
+    print(f"[→] {len(picks_rows) - 1} entries loaded from sheet")
+
+    if len(picks_rows) < 2:
+        print("[!] No entries found in sheet — add a test entry via the form first!")
+        return
+
+    # Build fake advanced_teams by pretending every team the FIRST entry picked actually won
+    first_row = picks_rows[1]
+    fake_advanced = set()
+
+    for col in range(2, 26):   # Group stage
+        team = get_cell(first_row, col)
+        if team: fake_advanced.add(("GROUP", team))
+
+    for col in range(26, 34):  # 3rd place
+        team = get_cell(first_row, col)
+        if team: fake_advanced.add(("3RD", team))
+
+    for col in range(34, 50):  # Round of 32
+        team = get_cell(first_row, col)
+        if team: fake_advanced.add(("R32", team))
+
+    for col in range(50, 58):  # Round of 16
+        team = get_cell(first_row, col)
+        if team: fake_advanced.add(("R16", team))
+
+    for col in range(58, 62):  # Quarter-finals
+        team = get_cell(first_row, col)
+        if team: fake_advanced.add(("QF", team))
+
+    for col in range(62, 64):  # Semi-finals
+        team = get_cell(first_row, col)
+        if team: fake_advanced.add(("SF", team))
+
+    for col in range(64, 66):  # Final
+        team = get_cell(first_row, col)
+        if team: fake_advanced.add(("FINAL", team))
+
+    champ = get_cell(first_row, CHAMPION_COL)
+    if champ: fake_advanced.add(("WINNER", champ))
+
+    print(f"[→] Fake results: {len(fake_advanced)} teams marked as advanced")
+
+    entries = calculate_scores(picks_rows, fake_advanced)
+
+    print("\n[→] Calculated scores:")
+    print(f"  {'Rank':<5} {'Name':<25} {'Email':<30} {'Group':>6} {'KO':>5} {'Champ':>6} {'Total':>6}")
+    print("  " + "-" * 85)
+    for i, e in enumerate(entries):
+        print(f"  {i+1:<5} {e['name']:<25} {e['email']:<30} {e['group']:>6} {e['knockout']:>5} {e['champion']:>6} {e['total']:>6}")
+
+    print("\n[→] Writing test results to Leaderboard tab...")
+    update_sheet(service, entries, picks_visible=True)
+    print("[✓] Test complete! Check the Leaderboard tab in your spreadsheet.")
+    print("    The first entry should have a PERFECT score since we used their picks as results.")
+
+
 if __name__ == "__main__":
-    main()
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "test":
+        test_mode()
+    else:
+        main()
