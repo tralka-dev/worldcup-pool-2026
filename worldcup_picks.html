@@ -182,7 +182,7 @@ const picks = {
   r16: Array(8).fill(null),
   qf:  Array(4).fill(null),
   sf:  Array(2).fill(null),
-  final: Array(2).fill(null),
+  final: Array(1).fill(null),
   champion: ""
 };
 
@@ -525,7 +525,7 @@ async function submitEntry() {
     r16:      picks.r16,
     qf:       picks.qf,
     sf:       picks.sf,
-    final:    picks.final,
+    final:    picks.final[0] || '',
     champion: picks.champion,
   };
 
