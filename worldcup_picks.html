@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>World Cup Pool 2026 — Submit Your Picks</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;color:#1a1a1a;font-size:15px}
+.page{max-width:960px;margin:0 auto;padding:24px 16px 80px}
+header{text-align:center;margin-bottom:32px}
+header h1{font-size:26px;font-weight:600;color:#1a1a1a;margin-bottom:6px}
+header p{font-size:14px;color:#666}
+/* Entry info */
+.entry-card{background:white;border-radius:12px;padding:20px 24px;margin-bottom:24px;border:1px solid #e0e0e0}
+.entry-card h2{font-size:15px;font-weight:600;margin-bottom:14px;color:#444;text-transform:uppercase;letter-spacing:.04em}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:600px){.field-row{grid-template-columns:1fr}}
+.field label{display:block;font-size:12px;font-weight:500;color:#666;margin-bottom:4px}
+.field input{width:100%;padding:9px 12px;border:1px solid #d0d0d0;border-radius:8px;font-size:14px;color:#1a1a1a}
+.field input:focus{outline:none;border-color:#1a73e8}
+/* Tabs */
+.tabs{display:flex;border-bottom:1px solid #e0e0e0;margin-bottom:20px;overflow-x:auto;background:white;border-radius:12px 12px 0 0;padding:0 16px}
+.tab{padding:12px 16px;font-size:13px;font-weight:500;cursor:pointer;border:none;background:none;color:#666;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;flex-shrink:0}
+.tab.active{color:#1a73e8;border-bottom-color:#1a73e8}
+.tab-body{background:white;border-radius:0 0 12px 12px;border:1px solid #e0e0e0;border-top:none;padding:20px}
+.panel{display:none}.panel.active{display:block}
+/* Groups */
+.groups-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.gcard{border:1px solid #e0e0e0;border-radius:10px;overflow:hidden}
+.gcard-head{padding:7px 12px;background:#f8f8f8;border-bottom:1px solid #e0e0e0;font-size:12px;font-weight:600;color:#444;text-transform:uppercase;letter-spacing:.05em}
+.gcard-picks{padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.pick-label{font-size:11px;font-weight:500;color:#888;margin-bottom:2px}
+.pick-select{width:100%;padding:7px 10px;border:1px solid #d0d0d0;border-radius:7px;font-size:13px;color:#1a1a1a;background:white}
+.pick-select:focus{outline:none;border-color:#1a73e8}
+.pick-select.filled{border-color:#34a853;background:#f6fef8}
+/* Knockout */
+.ko-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.kocard{border:1px solid #e0e0e0;border-radius:10px;overflow:hidden}
+.kocard.complete{border-color:#34a853}
+.kohead{padding:6px 12px;background:#f8f8f8;border-bottom:1px solid #e0e0e0;font-size:11px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:.05em;display:flex;justify-content:space-between}
+.kohead .sel-lbl{color:#34a853}
+.koteam{display:flex;align-items:center;gap:8px;padding:9px 12px;border-top:1px solid #e0e0e0;cursor:pointer;transition:background .1s}
+.koteam:hover{background:#f5f5f5}
+.koteam.sel{background:#e8f5e9}
+.koteam.locked{cursor:default}
+.koteam.locked:hover{background:transparent}
+.koteam.tbd{cursor:default;opacity:.5}
+.kochk{width:16px;height:16px;border-radius:50%;border:2px solid #ccc;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.koteam.sel .kochk{background:#34a853;border-color:#34a853}
+.kodot{width:6px;height:6px;border-radius:50%;background:white;display:none}
+.koteam.sel .kodot{display:block}
+.kotname{flex:1;font-size:13px;color:#1a1a1a}
+.koteam.sel .kotname{font-weight:500;color:#1e7e34}
+.koteam.tbd .kotname{color:#aaa;font-style:italic}
+.kosrc{font-size:10px;color:#aaa}
+/* Advance bar */
+.advance-bar{display:flex;align-items:center;gap:12px;padding:12px 0;margin-bottom:16px;border-bottom:1px solid #e8e8e8;flex-wrap:wrap}
+.btn-advance{padding:9px 20px;font-size:13px;font-weight:500;border-radius:8px;cursor:pointer;border:none;transition:all .15s}
+.btn-advance.ready{background:#1a73e8;color:white}
+.btn-advance.ready:hover{background:#1558b0}
+.btn-advance.locked-btn{background:#e8f5e9;color:#34a853;border:1px solid #34a853;cursor:default}
+.btn-advance.disabled{background:#f0f0f0;color:#aaa;cursor:not-allowed}
+.prog-text{font-size:12px;color:#666}
+.prog-text.warn{color:#e65100}
+.btn-edit{padding:7px 14px;font-size:12px;font-weight:500;border:1px solid #ccc;border-radius:7px;background:white;color:#444;cursor:pointer}
+.btn-edit:hover{background:#f5f5f5}
+/* 3rd place */
+.thirds-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin-top:4px}
+.third-select{padding:7px 10px;border:1px solid #d0d0d0;border-radius:7px;font-size:13px;color:#1a1a1a;background:white;width:100%}
+.third-select:focus{outline:none;border-color:#1a73e8}
+.third-select.filled{border-color:#34a853;background:#f6fef8}
+.section-label{font-size:12px;font-weight:600;color:#444;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px}
+/* Champion */
+.champion-section{text-align:center;padding:20px}
+.champion-section .champ-select{width:280px;padding:12px 16px;font-size:16px;font-weight:500;border:2px solid #d0d0d0;border-radius:10px;color:#1a1a1a;background:white;max-width:100%}
+.champion-section .champ-select:focus{outline:none;border-color:#f4b400}
+.champion-section .champ-select.filled{border-color:#f4b400;background:#fffde7}
+.champ-icon{font-size:36px;margin-bottom:8px}
+/* Submit */
+.submit-section{margin-top:28px;text-align:center}
+.btn-submit{padding:14px 40px;font-size:16px;font-weight:600;background:#1a73e8;color:white;border:none;border-radius:10px;cursor:pointer;transition:background .15s}
+.btn-submit:hover{background:#1558b0}
+.btn-submit:disabled{background:#ccc;cursor:not-allowed}
+.submit-note{font-size:12px;color:#888;margin-top:8px}
+.progress-summary{background:#f8f8f8;border:1px solid #e0e0e0;border-radius:10px;padding:14px 18px;margin-bottom:20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px}
+.prog-item{text-align:center}
+.prog-item .count{font-size:18px;font-weight:600;color:#1a73e8}
+.prog-item .count.done{color:#34a853}
+.prog-item .lbl{font-size:11px;color:#888}
+/* Toast */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:white;padding:12px 24px;border-radius:8px;font-size:14px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:999}
+.toast.show{opacity:1}
+.toast.success{background:#1e7e34}
+.toast.error{background:#c62828}
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1>⚽ World Cup Pool 2026</h1>
+    <p>Pick your teams for every round — from the group stage all the way to the champion</p>
+  </header>
+
+  <!-- Entry info -->
+  <div class="entry-card">
+    <h2>Your Details</h2>
+    <div class="field-row">
+      <div class="field">
+        <label>Your Name *</label>
+        <input type="text" id="entryName" placeholder="Your full name">
+      </div>
+      <div class="field">
+        <label>Email *</label>
+        <input type="email" id="entryEmail" placeholder="your@email.com">
+      </div>
+    </div>
+  </div>
+
+  <!-- Progress summary -->
+  <div class="progress-summary" id="progressSummary"></div>
+
+  <!-- Tabs -->
+  <div class="tabs" id="tabs">
+    <button class="tab active" onclick="showTab('groups',event)">Groups</button>
+    <button class="tab" onclick="showTab('thirds',event)">Best 3rd</button>
+    <button class="tab" onclick="showTab('r32',event)">Round of 32</button>
+    <button class="tab" onclick="showTab('r16',event)">Round of 16</button>
+    <button class="tab" onclick="showTab('qf',event)">Quarter-finals</button>
+    <button class="tab" onclick="showTab('sf',event)">Semi-finals</button>
+    <button class="tab" onclick="showTab('final',event)">Final</button>
+    <button class="tab" onclick="showTab('champion',event)">🏆 Champion</button>
+  </div>
+  <div class="tab-body">
+    <div id="panel-groups" class="panel active"></div>
+    <div id="panel-thirds" class="panel"></div>
+    <div id="panel-r32" class="panel"></div>
+    <div id="panel-r16" class="panel"></div>
+    <div id="panel-qf" class="panel"></div>
+    <div id="panel-sf" class="panel"></div>
+    <div id="panel-final" class="panel"></div>
+    <div id="panel-champion" class="panel"></div>
+  </div>
+
+  <!-- Submit -->
+  <div class="submit-section">
+    <button class="btn-submit" id="submitBtn" onclick="submitEntry()">Submit My Picks</button>
+    <div class="submit-note" id="submitNote">Fill in all rounds before submitting</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── CONFIG — paste your Apps Script Web App URL here after deploying ──────────
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxOvgaGSmNTKzY6XN3b5HoNjHE92cpixGpVwReRK5F5frmThZoUrc3JD90yFxIxV6u5Ow/exec";
+
+// ── Data ──────────────────────────────────────────────────────────────────────
+const GROUPS_DEF = {
+  A:["Mexico","South Africa","South Korea","Czechia"],
+  B:["Canada","Bosnia and Herzegovina","Qatar","Switzerland"],
+  C:["Brazil","Morocco","Haiti","Scotland"],
+  D:["USA","Paraguay","Australia","Turkiye"],
+  E:["Germany","Curacao","Ivory Coast","Ecuador"],
+  F:["Netherlands","Japan","Sweden","Tunisia"],
+  G:["Belgium","Egypt","Iran","New Zealand"],
+  H:["Spain","Cape Verde","Saudi Arabia","Uruguay"],
+  I:["France","Senegal","Norway","Iraq"],
+  J:["Argentina","Algeria","Austria","Jordan"],
+  K:["Portugal","DR Congo","Uzbekistan","Colombia"],
+  L:["England","Croatia","Ghana","Panama"]
+};
+const ALL_TEAMS = [...new Set(Object.values(GROUPS_DEF).flat())].sort();
+
+// User picks state
+const picks = {
+  groups: {}, // { A:{first:"",second:""}, ... }
+  thirds: Array(8).fill(""),
+  r32: Array(16).fill(null),
+  r16: Array(8).fill(null),
+  qf:  Array(4).fill(null),
+  sf:  Array(2).fill(null),
+  final: Array(2).fill(null),
+  champion: ""
+};
+
+// Locked state per round (after Advance Winners)
+const locked = {r32:false, r16:false, qf:false, sf:false, final:false};
+
+// Init group picks
+"ABCDEFGHIJKL".split("").forEach(g => picks.groups[g] = {first:"", second:""});
+
+// Round of 32 official pairings (from FIFA schedule)
+// Each entry: [homeGroupPos, awayGroupPos] referencing which qualifier fills each slot
+// We'll derive teams from group picks
+const R32_MATCHES = [
+  {mn:73, desc:"2nd A vs 2nd B"},
+  {mn:74, desc:"1st C vs 2nd F"},
+  {mn:75, desc:"1st E vs Best 3rd"},
+  {mn:76, desc:"1st F vs 2nd C"},
+  {mn:77, desc:"1st I vs Best 3rd"},
+  {mn:78, desc:"2nd E vs 2nd I"},
+  {mn:79, desc:"1st A vs Best 3rd"},
+  {mn:80, desc:"1st L vs Best 3rd"},
+  {mn:81, desc:"1st D vs Best 3rd"},
+  {mn:82, desc:"1st G vs Best 3rd"},
+  {mn:83, desc:"2nd K vs 2nd L"},
+  {mn:84, desc:"1st H vs 2nd J"},
+  {mn:85, desc:"1st B vs Best 3rd"},
+  {mn:86, desc:"1st J vs 2nd H"},
+  {mn:87, desc:"1st K vs Best 3rd"},
+  {mn:88, desc:"2nd D vs 2nd G"},
+];
+const R16_MN=[89,90,91,92,93,94,95,96];
+const QF_MN=[97,98,99,100];
+const SF_MN=[101,102];
+const R16_PAIRS=[[1,4],[0,2],[3,5],[6,7],[10,11],[8,9],[13,15],[12,14]];
+const QF_PAIRS=[[0,1],[4,5],[2,3],[6,7]];
+const SF_PAIRS=[[0,1],[2,3]];
+
+// Get team for a R32 slot based on group picks and thirds
+function getR32Teams(idx) {
+  const g = picks.groups;
+  const t = picks.thirds;
+  const q1 = (gr) => g[gr]?.first || "TBD";
+  const q2 = (gr) => g[gr]?.second || "TBD";
+  const b = (i) => t[i] || "TBD";
+  const map = [
+    [q2("A"), q2("B")], [q1("C"), q2("F")], [q1("E"), b(0)], [q1("F"), q2("C")],
+    [q1("I"), b(1)],    [q2("E"), q2("I")], [q1("A"), b(2)], [q1("L"), b(3)],
+    [q1("D"), b(4)],    [q1("G"), b(5)],    [q2("K"), q2("L")],[q1("H"), q2("J")],
+    [q1("B"), b(6)],    [q1("J"), q2("H")], [q1("K"), b(7)],  [q2("D"), q2("G")],
+  ];
+  return map[idx];
+}
+
+function getR16Teams(idx) {
+  const p = R16_PAIRS[idx];
+  return [picks.r32[p[0]] || "TBD", picks.r32[p[1]] || "TBD"];
+}
+function getQFTeams(idx) {
+  const p = QF_PAIRS[idx];
+  return [picks.r16[p[0]] || "TBD", picks.r16[p[1]] || "TBD"];
+}
+function getSFTeams(idx) {
+  const p = SF_PAIRS[idx];
+  return [picks.qf[p[0]] || "TBD", picks.qf[p[1]] || "TBD"];
+}
+function getFinTeams() {
+  return [picks.sf[0] || "TBD", picks.sf[1] || "TBD"];
+}
+
+// ── Render functions ──────────────────────────────────────────────────────────
+function renderGroups() {
+  let h = '<div class="groups-grid">';
+  "ABCDEFGHIJKL".split("").forEach(g => {
+    const teams = GROUPS_DEF[g];
+    const p = picks.groups[g];
+    const opts = teams.map(t => `<option value="${t}" ${p.first===t?'selected':''}>${t}</option>`).join('');
+    const opts2 = teams.map(t => `<option value="${t}" ${p.second===t?'selected':''}>${t}</option>`).join('');
+    h += `<div class="gcard">
+      <div class="gcard-head">Group ${g}</div>
+      <div class="gcard-picks">
+        <div>
+          <div class="pick-label">1st place</div>
+          <select class="pick-select ${p.first?'filled':''}" onchange="setGroup('${g}','first',this.value)">
+            <option value="">— Select team —</option>${opts}
+          </select>
+        </div>
+        <div>
+          <div class="pick-label">2nd place</div>
+          <select class="pick-select ${p.second?'filled':''}" onchange="setGroup('${g}','second',this.value)">
+            <option value="">— Select team —</option>${opts2}
+          </select>
+        </div>
+      </div>
+    </div>`;
+  });
+  h += '</div>';
+  document.getElementById('panel-groups').innerHTML = h;
+  updateProgress();
+}
+
+function renderThirds() {
+  const allSeconds = "ABCDEFGHIJKL".split("").map(g => picks.groups[g]?.second).filter(Boolean);
+  const allFirsts  = "ABCDEFGHIJKL".split("").map(g => picks.groups[g]?.first).filter(Boolean);
+  // 3rd place teams = all teams not picked as 1st or 2nd
+  const usedTeams = new Set([...allFirsts, ...allSeconds]);
+  const thirdTeams = ALL_TEAMS.filter(t => !usedTeams.has(t));
+
+  let h = `<p style="font-size:13px;color:#666;margin-bottom:14px">
+    Pick the 8 best third-place teams you think will advance to the Round of 32.
+  </p>
+  <div class="thirds-grid">`;
+  for (let i = 0; i < 8; i++) {
+    const val = picks.thirds[i] || "";
+    const opts = thirdTeams.map(t => `<option value="${t}" ${val===t?'selected':''}>${t}</option>`).join('');
+    h += `<div>
+      <div class="pick-label">3rd Place #${i+1}</div>
+      <select class="third-select ${val?'filled':''}" onchange="setThird(${i},this.value)">
+        <option value="">— Select —</option>${opts}
+      </select>
+    </div>`;
+  }
+  h += '</div>';
+  document.getElementById('panel-thirds').innerHTML = h;
+  updateProgress();
+}
+
+function renderKO(round, total, matches, getTeams, mnArr, panelId) {
+  const w = picks[round];
+  const sel = w.filter(Boolean).length;
+  const allSel = sel === total;
+  const isLocked = locked[round];
+
+  let h = `<div class="advance-bar">
+    <button class="btn-advance ${isLocked?'locked-btn':allSel?'ready':'disabled'}" 
+      onclick="${!isLocked&&allSel?`advanceWinners('${round}')`:''}" 
+      ${isLocked||!allSel?'disabled':''}>
+      ${isLocked?'✓ Winners Advanced':'Advance Winners'}
+    </button>
+    <span class="prog-text ${!allSel&&!isLocked?'warn':''}">
+      ${isLocked?'Selections locked':'<strong>'+sel+'/'+total+'</strong> selected'+(!allSel?' — select all to advance':'')}
+    </span>
+    ${isLocked?`<button class="btn-edit" onclick="editRound('${round}')">Edit</button>`:''}
+  </div><div class="ko-grid">`;
+
+  for (let i = 0; i < total; i++) {
+    const [ht, at] = getTeams(i);
+    const sel = w[i];
+    const mn = mnArr ? mnArr[i] : matches[i].mn;
+    const desc = matches ? matches[i]?.desc || '' : '';
+    const hTBD = ht === "TBD", aTBD = at === "TBD";
+    h += `<div class="kocard ${sel?'complete':''}">
+      <div class="kohead"><span>Match ${mn}</span>${sel?`<span class="sel-lbl">✓ ${sel}</span>`:''}</div>
+      ${desc?`<div style="padding:4px 12px;font-size:10px;color:#aaa">${desc}</div>`:''}
+      <div class="koteam ${sel===ht?'sel':''} ${hTBD||isLocked?'tbd':''}" 
+        onclick="${!isLocked&&!hTBD?`selKO('${round}',${i},'${ht.replace(/'/g,"\\'")}')`:''}" >
+        <div class="kochk"><div class="kodot"></div></div>
+        <span class="kotname">${ht}</span>
+      </div>
+      <div class="koteam ${sel===at?'sel':''} ${aTBD||isLocked?'tbd':''}"
+        onclick="${!isLocked&&!aTBD?`selKO('${round}',${i},'${at.replace(/'/g,"\\'")}')`:''}" >
+        <div class="kochk"><div class="kodot"></div></div>
+        <span class="kotname">${at}</span>
+      </div>
+    </div>`;
+  }
+  h += '</div>';
+  document.getElementById(panelId).innerHTML = h;
+  updateProgress();
+}
+
+function renderR32()    { renderKO('r32',  16, R32_MATCHES, getR32Teams, R32_MATCHES.map(m=>m.mn), 'panel-r32'); }
+function renderR16()    { renderKO('r16',   8, null, getR16Teams, R16_MN, 'panel-r16'); }
+function renderQF()     { renderKO('qf',    4, null, getQFTeams,  QF_MN,  'panel-qf'); }
+function renderSF()     { renderKO('sf',    2, null, getSFTeams,  SF_MN,  'panel-sf'); }
+function renderFinal()  {
+  const [h1,h2] = getFinTeams();
+  const sel = picks.final[0];
+  const isLocked = locked.final;
+  let h = `<div class="advance-bar">
+    <button class="btn-advance ${isLocked?'locked-btn':sel?'ready':'disabled'}"
+      onclick="${!isLocked&&sel?`advanceWinners('final')`:''}" ${isLocked||!sel?'disabled':''}>
+      ${isLocked?'✓ Winner Advanced':'Advance Winner'}
+    </button>
+    <span class="prog-text ${!sel&&!isLocked?'warn':''}">${isLocked?'Selection locked':sel?'Winner selected':'Select the Final winner'}</span>
+    ${isLocked?`<button class="btn-edit" onclick="editRound('final')">Edit</button>`:''}
+  </div><div class="ko-grid">`;
+  const hTBD=h1==="TBD",aTBD=h2==="TBD";
+  h+=`<div class="kocard ${sel?'complete':''}">
+    <div class="kohead"><span>Match 104 — World Cup Final</span>${sel?`<span class="sel-lbl">✓ ${sel}</span>`:''}</div>
+    <div class="koteam ${sel===h1?'sel':''} ${hTBD||isLocked?'tbd':''}" onclick="${!isLocked&&!hTBD?`selKO('final',0,'${h1.replace(/'/g,"\\'")}')`:''}" >
+      <div class="kochk"><div class="kodot"></div></div><span class="kotname">${h1}</span>
+    </div>
+    <div class="koteam ${sel===h2?'sel':''} ${aTBD||isLocked?'tbd':''}" onclick="${!isLocked&&!aTBD?`selKO('final',0,'${h2.replace(/'/g,"\\'")}')`:''}" >
+      <div class="kochk"><div class="kodot"></div></div><span class="kotname">${h2}</span>
+    </div>
+  </div></div>`;
+  document.getElementById('panel-final').innerHTML = h;
+  updateProgress();
+}
+
+function renderChampion() {
+  const finalists = [picks.final[0], picks.sf[0], picks.sf[1]].filter(Boolean);
+  const opts = (finalists.length > 0 ? finalists : ALL_TEAMS)
+    .map(t => `<option value="${t}" ${picks.champion===t?'selected':''}>${t}</option>`).join('');
+  document.getElementById('panel-champion').innerHTML = `
+    <div class="champion-section">
+      <div class="champ-icon">🏆</div>
+      <h3 style="font-size:16px;font-weight:600;margin-bottom:8px">Who will be World Champion?</h3>
+      <p style="font-size:13px;color:#666;margin-bottom:16px">
+        ${finalists.length>0?'Based on your final picks:':'Pick your champion'}
+      </p>
+      <select class="champ-select ${picks.champion?'filled':''}" onchange="picks.champion=this.value;renderChampion();updateProgress()">
+        <option value="">— Select champion —</option>${opts}
+      </select>
+    </div>`;
+  updateProgress();
+}
+
+// ── Actions ───────────────────────────────────────────────────────────────────
+function setGroup(g, pos, val) {
+  picks.groups[g][pos] = val;
+  // Clear downstream when group picks change
+  clearFromRound('r32');
+  renderGroups();
+}
+
+function setThird(i, val) {
+  picks.thirds[i] = val;
+  clearFromRound('r32');
+  if (document.querySelector('.panel.active').id === 'panel-thirds') renderThirds();
+  updateProgress();
+}
+
+function selKO(round, idx, team) {
+  if (locked[round]) return;
+  if (round === 'final') {
+    picks.final[0] = picks.final[0] === team ? null : team;
+  } else {
+    picks[round][idx] = picks[round][idx] === team ? null : team;
+  }
+  rerenderCurrent();
+}
+
+function advanceWinners(round) {
+  locked[round] = true;
+  clearFromRound(nextRound(round));
+  rerenderCurrent();
+}
+
+function editRound(round) {
+  locked[round] = false;
+  clearFromRound(round);
+  rerenderCurrent();
+}
+
+function nextRound(r) {
+  return {r32:'r16',r16:'qf',qf:'sf',sf:'final',final:'champion'}[r];
+}
+
+function clearFromRound(from) {
+  const order = ['r32','r16','qf','sf','final'];
+  const idx = order.indexOf(from);
+  if (idx === -1) return;
+  for (let i = idx; i < order.length; i++) {
+    picks[order[i]].fill(null);
+    locked[order[i]] = false;
+  }
+  picks.champion = "";
+}
+
+// ── Progress ──────────────────────────────────────────────────────────────────
+function countGroups() {
+  return "ABCDEFGHIJKL".split("").filter(g => picks.groups[g].first && picks.groups[g].second).length;
+}
+function updateProgress() {
+  const grp = countGroups();
+  const t3  = picks.thirds.filter(Boolean).length;
+  const r32 = picks.r32.filter(Boolean).length;
+  const r16 = picks.r16.filter(Boolean).length;
+  const qf  = picks.qf.filter(Boolean).length;
+  const sf  = picks.sf.filter(Boolean).length;
+  const fin = picks.final.filter(Boolean).length;
+  const champ = picks.champion ? 1 : 0;
+
+  document.getElementById('progressSummary').innerHTML = [
+    {lbl:'Groups',done:grp,total:12},
+    {lbl:'Best 3rd',done:t3,total:8},
+    {lbl:'Rd of 32',done:r32,total:16},
+    {lbl:'Rd of 16',done:r16,total:8},
+    {lbl:'QF',done:qf,total:4},
+    {lbl:'SF',done:sf,total:2},
+    {lbl:'Final',done:fin,total:1},
+    {lbl:'Champion',done:champ,total:1},
+  ].map(x => `<div class="prog-item">
+    <div class="count ${x.done===x.total?'done':''}">${x.done}/${x.total}</div>
+    <div class="lbl">${x.lbl}</div>
+  </div>`).join('');
+
+  const allDone = grp===12&&t3===8&&r32===16&&r16===8&&qf===4&&sf===2&&fin===1&&champ===1;
+  document.getElementById('submitBtn').disabled = !allDone;
+  document.getElementById('submitNote').textContent = allDone
+    ? 'All picks complete — ready to submit!'
+    : 'Complete all rounds to enable submission';
+}
+
+// ── Submit ────────────────────────────────────────────────────────────────────
+async function submitEntry() {
+  const name  = document.getElementById('entryName').value.trim();
+  const email = document.getElementById('entryEmail').value.trim();
+  if (!name)  { showToast('Please enter your name', 'error'); return; }
+  if (!email) { showToast('Please enter your email', 'error'); return; }
+
+  const payload = {
+    name,
+    email,
+    groups:   picks.groups,
+    thirds:   picks.thirds,
+    r32:      picks.r32,
+    r16:      picks.r16,
+    qf:       picks.qf,
+    sf:       picks.sf,
+    final:    picks.final,
+    champion: picks.champion,
+  };
+
+  document.getElementById('submitBtn').disabled = true;
+  document.getElementById('submitBtn').textContent = 'Submitting...';
+
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('🎉 Entry submitted successfully!', 'success');
+      document.getElementById('submitBtn').textContent = '✓ Submitted!';
+    } else {
+      throw new Error(data.message);
+    }
+  } catch (err) {
+    showToast('Submission failed: ' + err.message, 'error');
+    document.getElementById('submitBtn').disabled = false;
+    document.getElementById('submitBtn').textContent = 'Submit My Picks';
+  }
+}
+
+function showToast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast show ${type||''}`;
+  setTimeout(() => t.className = 'toast', 3500);
+}
+
+// ── Tab navigation ─────────────────────────────────────────────────────────
+const RENDERERS = {
+  groups: renderGroups, thirds: renderThirds,
+  r32: renderR32, r16: renderR16, qf: renderQF, sf: renderSF,
+  final: renderFinal, champion: renderChampion
+};
+function rerenderCurrent() {
+  const id = document.querySelector('.panel.active').id.replace('panel-', '');
+  RENDERERS[id]?.();
+}
+function showTab(t, e) {
+  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(el => el.classList.remove('active'));
+  e.target.classList.add('active');
+  document.getElementById('panel-' + t).classList.add('active');
+  RENDERERS[t]?.();
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+renderGroups();
+updateProgress();
+</script>
+</body>
+</html>
