@@ -297,7 +297,12 @@ function renderThirds() {
   <div class="thirds-grid">`;
   for (let i = 0; i < 8; i++) {
     const val = picks.thirds[i] || "";
-    const opts = thirdTeams.map(t => `<option value="${t}" ${val===t?'selected':''}>${t}</option>`).join('');
+    // Exclude teams already picked in other 3rd place slots
+    const otherPicks = new Set(picks.thirds.filter((t, j) => j !== i && t));
+    const opts = thirdTeams.map(t => {
+      const taken = otherPicks.has(t);
+      return `<option value="${t}" ${val===t?'selected':''} ${taken?'disabled':''}>${t}${taken?' (already picked)':''}</option>`;
+    }).join('');
     h += `<div>
       <div class="pick-label">3rd Place #${i+1}</div>
       <select class="third-select ${val?'filled':''}" onchange="setThird(${i},this.value)">
@@ -413,6 +418,10 @@ function setGroup(g, pos, val) {
 }
 
 function setThird(i, val) {
+  // Clear any other slot that has the same team
+  if (val) {
+    picks.thirds.forEach((t, j) => { if (j !== i && t === val) picks.thirds[j] = ''; });
+  }
   picks.thirds[i] = val;
   clearFromRound('r32');
   if (document.querySelector('.panel.active').id === 'panel-thirds') renderThirds();
