@@ -291,11 +291,6 @@ def update_sheet(service, entries, picks_visible):
                 e["sf"],            f"{e['sf_correct']}/2",
                 e["champion"],
                 e["total"],
-                e["r16"],
-                e["qf"],
-                e["sf"],
-                e["champion"],
-                e["total"],
                 now if i == 0 else ""
             ]
             for i, e in enumerate(entries)
