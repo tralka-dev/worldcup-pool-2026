@@ -256,15 +256,17 @@ function renderGroups() {
   "ABCDEFGHIJKL".split("").forEach(g => {
     const teams = GROUPS_DEF[g];
     const p = picks.groups[g];
-    const opts = teams.map(t => `<option value="${t}" ${p.first===t?'selected':''}>${t}</option>`).join('');
-    const opts2 = teams.map(t => `<option value="${t}" ${p.second===t?'selected':''}>${t}</option>`).join('');
+    // Exclude the 2nd pick from 1st dropdown and vice versa
+    const opts1 = teams.map(t => `<option value="${t}" ${p.first===t?'selected':''} ${t===p.second?'disabled style="color:#ccc"':''}>${t}${t===p.second?' (picked 2nd)':''}</option>`).join('');
+    const opts2 = teams.map(t => `<option value="${t}" ${p.second===t?'selected':''} ${t===p.first?'disabled style="color:#ccc"':''}>${t}${t===p.first?' (picked 1st)':''}</option>`).join('');
+    const conflict = p.first && p.second && p.first === p.second;
     h += `<div class="gcard">
       <div class="gcard-head">Group ${g}</div>
       <div class="gcard-picks">
         <div>
           <div class="pick-label">1st place</div>
           <select class="pick-select ${p.first?'filled':''}" onchange="setGroup('${g}','first',this.value)">
-            <option value="">— Select team —</option>${opts}
+            <option value="">— Select team —</option>${opts1}
           </select>
         </div>
         <div>
@@ -273,6 +275,7 @@ function renderGroups() {
             <option value="">— Select team —</option>${opts2}
           </select>
         </div>
+        ${conflict?'<div style="font-size:11px;color:#c62828;margin-top:2px">1st and 2nd place cannot be the same team</div>':''}
       </div>
     </div>`;
   });
@@ -400,7 +403,11 @@ function renderChampion() {
 // ── Actions ───────────────────────────────────────────────────────────────────
 function setGroup(g, pos, val) {
   picks.groups[g][pos] = val;
-  // Clear downstream when group picks change
+  // If same team selected for both, clear the other pick
+  const other = pos === 'first' ? 'second' : 'first';
+  if (val && picks.groups[g][other] === val) {
+    picks.groups[g][other] = '';
+  }
   clearFromRound('r32');
   renderGroups();
 }
