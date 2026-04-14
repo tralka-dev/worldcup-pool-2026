@@ -23,6 +23,8 @@ header p{font-size:14px;color:#666}
 .tabs{display:flex;border-bottom:1px solid #e0e0e0;margin-bottom:20px;overflow-x:auto;background:white;border-radius:12px 12px 0 0;padding:0 16px}
 .tab{padding:12px 16px;font-size:13px;font-weight:500;cursor:pointer;border:none;background:none;color:#666;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;flex-shrink:0}
 .tab.active{color:#1a73e8;border-bottom-color:#1a73e8}
+.tab.tab-locked{color:#ccc;cursor:not-allowed}
+.tab.tab-locked:hover{color:#ccc}
 .tab-body{background:white;border-radius:0 0 12px 12px;border:1px solid #e0e0e0;border-top:none;padding:20px}
 .panel{display:none}.panel.active{display:block}
 /* Groups */
@@ -122,13 +124,13 @@ header p{font-size:14px;color:#666}
 
   <!-- Tabs -->
   <div class="tabs" id="tabs">
-    <button class="tab active" onclick="showTab('groups',event)">Groups</button>
-    <button class="tab" onclick="showTab('thirds',event)">Best 3rd</button>
-    <button class="tab" onclick="showTab('r32',event)">Round of 32</button>
-    <button class="tab" onclick="showTab('r16',event)">Round of 16</button>
-    <button class="tab" onclick="showTab('qf',event)">Quarter-finals</button>
-    <button class="tab" onclick="showTab('sf',event)">Semi-finals</button>
-    <button class="tab" onclick="showTab('final',event)">Final</button>
+    <button class="tab active" id="tab-groups"  onclick="showTab('groups',event)">Groups</button>
+    <button class="tab tab-locked" id="tab-thirds" onclick="showTab('thirds',event)">Best 3rd</button>
+    <button class="tab tab-locked" id="tab-r32"    onclick="showTab('r32',event)">Round of 32</button>
+    <button class="tab tab-locked" id="tab-r16"    onclick="showTab('r16',event)">Round of 16</button>
+    <button class="tab tab-locked" id="tab-qf"     onclick="showTab('qf',event)">Quarter-finals</button>
+    <button class="tab tab-locked" id="tab-sf"     onclick="showTab('sf',event)">Semi-finals</button>
+    <button class="tab tab-locked" id="tab-final"  onclick="showTab('final',event)">Final</button>
     
   </div>
   <div class="tab-body">
@@ -447,6 +449,7 @@ function advanceWinners(round) {
   }
   rerenderCurrent();
   updateProgress();
+  updateTabs();
 }
 
 function editRound(round) {
@@ -503,6 +506,7 @@ function updateProgress() {
   document.getElementById('submitNote').textContent = allDone
     ? 'All picks complete — ready to submit!'
     : 'Complete all rounds to enable submission';
+  updateTabs();
 }
 
 // ── Submit ────────────────────────────────────────────────────────────────────
@@ -564,7 +568,37 @@ function rerenderCurrent() {
   const id = document.querySelector('.panel.active').id.replace('panel-', '');
   RENDERERS[id]?.();
 }
+// Tab unlock order — each tab unlocks after its prerequisite is done
+const TAB_ORDER = ['groups','thirds','r32','r16','qf','sf','final'];
+
+function isTabUnlocked(t) {
+  if (t === 'groups') return true;
+  if (t === 'thirds') return countGroups() === 12;
+  if (t === 'r32')    return locked.r32 === false && picks.thirds.filter(Boolean).length === 8 || locked.r32;
+  if (t === 'r16')    return locked.r32;
+  if (t === 'qf')     return locked.r16;
+  if (t === 'sf')     return locked.qf;
+  if (t === 'final')  return locked.sf;
+  return false;
+}
+
+function updateTabs() {
+  TAB_ORDER.forEach(t => {
+    const btn = document.getElementById('tab-' + t);
+    if (!btn) return;
+    if (isTabUnlocked(t)) {
+      btn.classList.remove('tab-locked');
+    } else {
+      btn.classList.add('tab-locked');
+    }
+  });
+}
+
 function showTab(t, e) {
+  if (e.target.classList.contains('tab-locked')) {
+    showToast('Complete the previous round first', 'error');
+    return;
+  }
   document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(el => el.classList.remove('active'));
   e.target.classList.add('active');
