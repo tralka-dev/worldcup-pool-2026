@@ -99,7 +99,7 @@ header p{font-size:14px;color:#666}
 <div class="page">
   <header>
     <h1>⚽ World Cup Pool 2026</h1>
-    <p>Pick your teams for every round — from the group stage all the way to the champion</p>
+    <p>Pick your teams for every round — the Final winner automatically becomes your champion</p>
   </header>
 
   <!-- Entry info -->
@@ -129,7 +129,7 @@ header p{font-size:14px;color:#666}
     <button class="tab" onclick="showTab('qf',event)">Quarter-finals</button>
     <button class="tab" onclick="showTab('sf',event)">Semi-finals</button>
     <button class="tab" onclick="showTab('final',event)">Final</button>
-    <button class="tab" onclick="showTab('champion',event)">🏆 Champion</button>
+    
   </div>
   <div class="tab-body">
     <div id="panel-groups" class="panel active"></div>
@@ -382,20 +382,18 @@ function renderFinal()  {
 }
 
 function renderChampion() {
-  const finalists = [picks.final[0], picks.sf[0], picks.sf[1]].filter(Boolean);
-  const opts = (finalists.length > 0 ? finalists : ALL_TEAMS)
-    .map(t => `<option value="${t}" ${picks.champion===t?'selected':''}>${t}</option>`).join('');
-  document.getElementById('panel-champion').innerHTML = `
-    <div class="champion-section">
-      <div class="champ-icon">🏆</div>
-      <h3 style="font-size:16px;font-weight:600;margin-bottom:8px">Who will be World Champion?</h3>
-      <p style="font-size:13px;color:#666;margin-bottom:16px">
-        ${finalists.length>0?'Based on your final picks:':'Pick your champion'}
-      </p>
-      <select class="champ-select ${picks.champion?'filled':''}" onchange="picks.champion=this.value;renderChampion();updateProgress()">
-        <option value="">— Select champion —</option>${opts}
-      </select>
-    </div>`;
+  const champ = picks.champion;
+  document.getElementById('panel-champion').innerHTML = champ
+    ? `<div class="champion-section">
+        <div class="champ-icon">🏆</div>
+        <h3 style="font-size:16px;font-weight:600;margin-bottom:8px">Your World Champion</h3>
+        <div style="font-size:22px;font-weight:600;color:#1e7e34;margin-top:8px">${champ}</div>
+        <p style="font-size:12px;color:#888;margin-top:8px">Automatically set from your Final pick</p>
+      </div>`
+    : `<div class="champion-section">
+        <div class="champ-icon">🏆</div>
+        <p style="font-size:14px;color:#888">Complete the Final round first — the winner will automatically become your champion.</p>
+      </div>`;
   updateProgress();
 }
 
@@ -427,7 +425,12 @@ function selKO(round, idx, team) {
 function advanceWinners(round) {
   locked[round] = true;
   clearFromRound(nextRound(round));
+  // Auto-set champion when Final winner is advanced — no separate step needed
+  if (round === 'final' && picks.final[0]) {
+    picks.champion = picks.final[0];
+  }
   rerenderCurrent();
+  updateProgress();
 }
 
 function editRound(round) {
