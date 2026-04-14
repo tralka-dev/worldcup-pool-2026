@@ -92,6 +92,15 @@ header p{font-size:14px;color:#666}
 .prog-item .lbl{font-size:11px;color:#888}
 /* Toast */
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:white;padding:12px 24px;border-radius:8px;font-size:14px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:999}
+.closed-banner{background:#fef2f2;border:1px solid #fca5a5;border-radius:12px;padding:24px;text-align:center;margin-bottom:24px}
+.closed-banner h2{font-size:20px;font-weight:600;color:#991b1b;margin-bottom:8px}
+.closed-banner p{font-size:14px;color:#b91c1c;margin:0}
+.countdown-wrap{background:white;border:1px solid #e0e0e0;border-radius:12px;padding:16px;text-align:center;margin-bottom:24px}
+.countdown-label{font-size:12px;color:#666;margin-bottom:8px;font-weight:500;text-transform:uppercase;letter-spacing:.05em}
+.countdown-timer{display:flex;justify-content:center;gap:16px}
+.cunit{text-align:center}
+.cnum{font-size:28px;font-weight:600;color:#1a1a1a;line-height:1}
+.clbl{font-size:11px;color:#888;margin-top:2px}
 .toast.show{opacity:1}
 .toast.success{background:#1e7e34}
 .toast.error{background:#c62828}
@@ -104,8 +113,20 @@ header p{font-size:14px;color:#666}
     <p>Pick your teams for every round — then choose your World Champion</p>
   </header>
 
+  <!-- Deadline check -->
+  <div id="deadline-banner"></div>
+  <div id="countdown-wrap" class="countdown-wrap" style="display:none">
+    <div class="countdown-label">Submissions close in</div>
+    <div class="countdown-timer">
+      <div class="cunit"><div class="cnum" id="cd-days">--</div><div class="clbl">days</div></div>
+      <div class="cunit"><div class="cnum" id="cd-hours">--</div><div class="clbl">hours</div></div>
+      <div class="cunit"><div class="cnum" id="cd-mins">--</div><div class="clbl">mins</div></div>
+      <div class="cunit"><div class="cnum" id="cd-secs">--</div><div class="clbl">secs</div></div>
+    </div>
+  </div>
+
   <!-- Entry info -->
-  <div class="entry-card">
+  <div class="entry-card" id="entry-card">
     <h2>Your Details</h2>
     <div class="field-row">
       <div class="field">
@@ -153,6 +174,49 @@ header p{font-size:14px;color:#666}
 <div class="toast" id="toast"></div>
 
 <script>
+// ── DEADLINE ─────────────────────────────────────────────────────────────────
+// June 10, 2026 at midnight ET (UTC-4 during EDT)
+const DEADLINE = new Date('2026-06-11T07:00:00Z'); // midnight PT (PDT = UTC-7)
+
+function checkDeadline() {
+  const now = new Date();
+  const isClosed = now >= DEADLINE;
+
+  if (isClosed) {
+    // Hide everything and show closed banner
+    document.getElementById('deadline-banner').innerHTML = `
+      <div class="closed-banner">
+        <h2>Submissions Closed</h2>
+        <p>The deadline for World Cup Pool 2026 entries was June 10, 2026 at midnight PT.<br>
+        The tournament kicks off on June 11 — good luck everyone!</p>
+      </div>`;
+    document.getElementById('entry-card').style.display = 'none';
+    document.getElementById('progressSummary').style.display = 'none';
+    document.getElementById('tabs').style.display = 'none';
+    document.querySelector('.tab-body').style.display = 'none';
+    document.querySelector('.submit-section').style.display = 'none';
+  } else {
+    // Show countdown
+    document.getElementById('countdown-wrap').style.display = 'block';
+    updateCountdown();
+    setInterval(updateCountdown, 1000);
+  }
+}
+
+function updateCountdown() {
+  const now = new Date();
+  const diff = DEADLINE - now;
+  if (diff <= 0) { checkDeadline(); return; }
+  const days  = Math.floor(diff / 86400000);
+  const hours = Math.floor((diff % 86400000) / 3600000);
+  const mins  = Math.floor((diff % 3600000) / 60000);
+  const secs  = Math.floor((diff % 60000) / 1000);
+  document.getElementById('cd-days').textContent  = String(days).padStart(2,'0');
+  document.getElementById('cd-hours').textContent = String(hours).padStart(2,'0');
+  document.getElementById('cd-mins').textContent  = String(mins).padStart(2,'0');
+  document.getElementById('cd-secs').textContent  = String(secs).padStart(2,'0');
+}
+
 // ── CONFIG — paste your Apps Script Web App URL here after deploying ──────────
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyv8pBae4saScOCcx-klFGsBZ7IRvBvPuvQB6bnlwBn2X7fatpY6kw83JJHmQWtDLSDtA/exec";
 
@@ -605,6 +669,7 @@ function showTab(t, e) {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
+checkDeadline();
 renderGroups();
 updateProgress();
 </script>
