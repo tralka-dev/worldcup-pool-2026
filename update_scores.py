@@ -8,6 +8,7 @@ Fixes:
 - Duplicate rule: if same team appears more than once in R16 onwards, points awarded only once
 - Email column included in Leaderboard output
 - Correct point values: GROUP=1, 3RD=1, R16=2, QF=3, SF=4, FINAL=5, CHAMPION=7
+- Picks sheet headers renamed to short names on every run
 """
 
 import os
@@ -22,7 +23,7 @@ FOOTBALL_API_KEY  = os.environ["FOOTBALL_API_KEY"]
 GOOGLE_CREDS_JSON = os.environ["GOOGLE_CREDS_JSON"]
 SPREADSHEET_ID    = os.environ["SPREADSHEET_ID"]
 
-WC2026_ID        = os.environ.get("WC2026_ID", "WC")  # Update after finding correct ID
+WC2026_ID        = os.environ.get("WC2026_ID", "WC")
 PICKS_VISIBLE    = os.environ.get("PICKS_VISIBLE", "false").lower() == "true"
 TOURNAMENT_START = datetime(2026, 6, 11, tzinfo=timezone.utc)
 
@@ -60,16 +61,48 @@ ROUND_MAP = {
 # Col 67    (BP)     = Email Address
 
 ROUND_COLS = [
-    ("GROUP", 2,  25),   # cols 2-25  = 24 group picks (C-Z)
-    ("3RD",   26, 33),   # cols 26-33 = 8 third place picks (AA-AH)
-    ("R32",   34, 49),   # cols 34-49 = 16 round of 32 picks (AI-AX)
-    ("R16",   50, 57),   # cols 50-57 = 8 round of 16 picks (AY-BF)
-    ("QF",    58, 61),   # cols 58-61 = 4 quarter-final picks (BG-BJ)
-    ("SF",    62, 63),   # cols 62-63 = 2 semi-final picks (BK-BL)
-    ("FINAL", 64, 65),   # cols 64-65 = 2 final picks (BM-BN)
+    ("GROUP", 2,  25),
+    ("3RD",   26, 33),
+    ("R32",   34, 49),
+    ("R16",   50, 57),
+    ("QF",    58, 61),
+    ("SF",    62, 63),
+    ("FINAL", 64, 65),
 ]
-CHAMPION_COL = 66  # Column BO
-EMAIL_COL    = 67  # Column BP
+CHAMPION_COL = 66
+EMAIL_COL    = 67
+
+# ── Short header names (68 columns total) ─────────────────────────────────────
+SHORT_HEADERS = (
+    ["Timestamp", "Entry Name"]
+    # Group stage: Groups A-L, 1st and 2nd pick each (24 cols)
+    + [f"Grp {g} {n}" for g in "ABCDEFGHIJKL" for n in ["1st", "2nd"]]
+    # 3rd place picks (8 cols)
+    + [f"3rd {i+1}" for i in range(8)]
+    # Round of 32 (16 cols)
+    + [f"R32-{i+1}" for i in range(16)]
+    # Round of 16 (8 cols)
+    + [f"R16-{i+1}" for i in range(8)]
+    # Quarter-finals (4 cols)
+    + [f"QF-{i+1}" for i in range(4)]
+    # Semi-finals (2 cols)
+    + ["SF-1", "SF-2"]
+    # Final (2 cols)
+    + ["Final-1", "Final-2"]
+    # Champion + Email
+    + ["Champion", "Email"]
+)
+
+
+def rename_picks_headers(service):
+    """Overwrite row 1 of the Picks sheet with short column names."""
+    service.spreadsheets().values().update(
+        spreadsheetId=SPREADSHEET_ID,
+        range="Picks!A1",
+        valueInputOption="RAW",
+        body={"values": [SHORT_HEADERS]}
+    ).execute()
+    print(f"[✓] Picks headers renamed ({len(SHORT_HEADERS)} columns)")
 
 
 def fetch_standings_and_results():
@@ -123,12 +156,10 @@ def fetch_standings_and_results():
             loser  = away if winner == home else home
             advanced_teams.add((stage, winner))
             if stage == "FINAL":
-                advanced_teams.add(("FINAL", loser))   # Both finalists get FINAL points
-                advanced_teams.add(("WINNER", winner))  # Champion gets bonus
-            # For R32: both teams that played get R32 credit (they made it out of groups)
-            # Winner advances to R16
+                advanced_teams.add(("FINAL", loser))
+                advanced_teams.add(("WINNER", winner))
             if stage == "R32":
-                advanced_teams.add(("R32", loser))  # Loser still made it to R32
+                advanced_teams.add(("R32", loser))
     except Exception as e:
         print(f"[!] Could not fetch knockout results: {e}")
 
@@ -150,11 +181,11 @@ def calculate_scores(picks_rows, advanced_teams):
         if not row or len(row) < 2 or not row[1]:
             continue
 
-        raw_name = row[1].strip()  # Col B = Entry Name
+        raw_name = row[1].strip()
         if not raw_name:
             continue
 
-        email = get_cell(row, EMAIL_COL) or ""  # Col BP = Email Address
+        email = get_cell(row, EMAIL_COL) or ""
 
         # Auto-number duplicate names
         name_counts[raw_name] += 1
@@ -267,7 +298,7 @@ def update_sheet(service, entries, picks_visible):
             header
         ] + rows
 
-    # Clear the sheet first to remove any old data
+    # Clear the sheet first
     service.spreadsheets().values().clear(
         spreadsheetId=SPREADSHEET_ID,
         range="Leaderboard!A1:Z1000"
@@ -280,7 +311,6 @@ def update_sheet(service, entries, picks_visible):
         body={"values": data}
     ).execute()
 
-    # Apply top 3 colors if picks are visible
     if picks_visible and len(entries) > 0:
         apply_top3_colors(service, picks_visible)
 
@@ -290,18 +320,11 @@ def update_sheet(service, entries, picks_visible):
 
 def apply_top3_colors(service, picks_visible):
     """Highlight top 3 rows with gold, silver, bronze colors."""
-
-    # Row offsets depend on whether picks are visible or hidden
-    # Visible mode: row 1 = header, rows 2+ = entries
-    # Hidden mode: rows 1-3 = title/note/blank, row 4 = header, rows 5+ = entries
     if picks_visible:
-        header_row = 0   # 0-indexed
         first_entry_row = 1
     else:
-        header_row = 3
         first_entry_row = 4
 
-    # Colors: gold, silver, bronze
     colors = [
         {"red": 1.0,  "green": 0.84, "blue": 0.0},   # Gold
         {"red": 0.75, "green": 0.75, "blue": 0.75},   # Silver
@@ -309,12 +332,13 @@ def apply_top3_colors(service, picks_visible):
     ]
 
     requests_body = []
+    sheet_id = get_leaderboard_sheet_id(service)
 
-    # First clear all background colors from entry rows
+    # Clear all background colors from entry rows
     requests_body.append({
         "repeatCell": {
             "range": {
-                "sheetId": get_leaderboard_sheet_id(service),
+                "sheetId": sheet_id,
                 "startRowIndex": first_entry_row,
                 "endRowIndex": first_entry_row + 100,
             },
@@ -324,7 +348,6 @@ def apply_top3_colors(service, picks_visible):
     })
 
     # Apply gold/silver/bronze to top 3
-    sheet_id = get_leaderboard_sheet_id(service)
     for i, color in enumerate(colors):
         row_index = first_entry_row + i
         requests_body.append({
@@ -368,9 +391,12 @@ def main():
     )
     service = build("sheets", "v4", credentials=creds)
 
+    # Rename Picks sheet headers to short names
+    rename_picks_headers(service)
+
     picks_rows = service.spreadsheets().values().get(
         spreadsheetId=SPREADSHEET_ID,
-        range="Picks!A1:BP500"  # A through BP to capture all columns including Email
+        range="Picks!A1:BP500"
     ).execute().get("values", [])
     print(f"[→] {len(picks_rows) - 1} entries loaded")
 
@@ -386,8 +412,6 @@ def test_mode():
     """
     Test mode — uses fake tournament results based on the real picks in the sheet.
     Pretends that ALL teams the first entry picked actually advanced.
-    This lets you verify column mapping, scoring logic, and Leaderboard output
-    without needing a real API key or waiting for the tournament to start.
 
     Run with:  python update_scores.py test
     """
@@ -401,6 +425,9 @@ def test_mode():
     )
     service = build("sheets", "v4", credentials=creds)
 
+    # Rename headers first
+    rename_picks_headers(service)
+
     picks_rows = service.spreadsheets().values().get(
         spreadsheetId=os.environ["SPREADSHEET_ID"],
         range="Picks!A1:BP500"
@@ -411,35 +438,35 @@ def test_mode():
         print("[!] No entries found in sheet — add a test entry via the form first!")
         return
 
-    # Build fake advanced_teams by pretending every team the FIRST entry picked actually won
+    # Build fake advanced_teams from first entry's picks
     first_row = picks_rows[1]
     fake_advanced = set()
 
-    for col in range(2, 26):   # Group stage
+    for col in range(2, 26):
         team = get_cell(first_row, col)
         if team: fake_advanced.add(("GROUP", team))
 
-    for col in range(26, 34):  # 3rd place
+    for col in range(26, 34):
         team = get_cell(first_row, col)
         if team: fake_advanced.add(("3RD", team))
 
-    for col in range(34, 50):  # Round of 32
+    for col in range(34, 50):
         team = get_cell(first_row, col)
         if team: fake_advanced.add(("R32", team))
 
-    for col in range(50, 58):  # Round of 16
+    for col in range(50, 58):
         team = get_cell(first_row, col)
         if team: fake_advanced.add(("R16", team))
 
-    for col in range(58, 62):  # Quarter-finals
+    for col in range(58, 62):
         team = get_cell(first_row, col)
         if team: fake_advanced.add(("QF", team))
 
-    for col in range(62, 64):  # Semi-finals
+    for col in range(62, 64):
         team = get_cell(first_row, col)
         if team: fake_advanced.add(("SF", team))
 
-    for col in range(64, 66):  # Final
+    for col in range(64, 66):
         team = get_cell(first_row, col)
         if team: fake_advanced.add(("FINAL", team))
 
