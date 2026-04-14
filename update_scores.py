@@ -4,7 +4,7 @@ Supports multiple entries per participant.
 
 Fixes:
 - Skips Timestamp column (col A), Entry Name is col B, picks start col C
-- Correct round structure: GROUP(24) + 3RD(8) + R16(8) + QF(4) + SF(2) + FINAL(2) + CHAMPION(1)
+- Correct round structure: GROUP(24) + 3RD(8) + R32(16) + R16(8) + QF(4) + SF(2) + FINAL(1) + CHAMPION(1)
 - Duplicate rule: if same team appears more than once in R16 onwards, points awarded only once
 - Email column included in Leaderboard output
 - Correct point values: GROUP=1, 3RD=1, R16=2, QF=3, SF=4, FINAL=5, CHAMPION=7
@@ -56,8 +56,8 @@ ROUND_MAP = {
 # Col 50-57 (AY-BF)  = Round of 16 picks (8 cols)
 # Col 58-61 (BG-BJ)  = Quarter-final picks (4 cols)
 # Col 62-63 (BK-BL)  = Semi-final picks (2 cols)
-# Col 64-65 (BM-BN)  = Final picks (2 cols)
-# Col 66    (BO)     = Champion pick (1 col)
+# Col 64    (BM)     = Final winner (1 col)
+# Col 65    (BN)     = Champion pick (1 col)
 # Col 67    (BP)     = Email Address
 
 ROUND_COLS = [
@@ -67,10 +67,10 @@ ROUND_COLS = [
     ("R16",   50, 57),
     ("QF",    58, 61),
     ("SF",    62, 63),
-    ("FINAL", 64, 65),
+    ("FINAL", 64, 64),
 ]
-CHAMPION_COL = 66
-EMAIL_COL    = 67
+CHAMPION_COL = 65
+EMAIL_COL    = 66
 
 # ── Short header names (68 columns total) ─────────────────────────────────────
 SHORT_HEADERS = (
@@ -87,8 +87,8 @@ SHORT_HEADERS = (
     + [f"QF-{i+1}" for i in range(4)]
     # Semi-finals (2 cols)
     + ["SF-1", "SF-2"]
-    # Final (2 cols)
-    + ["Final-1", "Final-2"]
+    # Final (1 col)
+    + ["Final"]
     # Champion + Email
     + ["Champion", "Email"]
 )
@@ -156,7 +156,6 @@ def fetch_standings_and_results():
             loser  = away if winner == home else home
             advanced_teams.add((stage, winner))
             if stage == "FINAL":
-                advanced_teams.add(("FINAL", loser))
                 advanced_teams.add(("WINNER", winner))
             if stage == "R32":
                 advanced_teams.add(("R32", loser))
@@ -209,7 +208,7 @@ def calculate_scores(picks_rows, advanced_teams):
 
         # --- Knockout rounds with duplicate protection per round ---
         knockout_picks = []
-        for rnd, col_start, col_end in [("R32", 34, 49), ("R16", 50, 57), ("QF", 58, 61), ("SF", 62, 63), ("FINAL", 64, 65)]:
+        for rnd, col_start, col_end in [("R32", 34, 49), ("R16", 50, 57), ("QF", 58, 61), ("SF", 62, 63), ("FINAL", 64, 64)]:
             for col in range(col_start, col_end + 1):
                 team = get_cell(row, col)
                 if team:
