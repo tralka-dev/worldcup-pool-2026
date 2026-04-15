@@ -349,11 +349,29 @@ function renderGroups() {
 }
 
 function renderThirds() {
-  const allSeconds = "ABCDEFGHIJKL".split("").map(g => picks.groups[g]?.second).filter(Boolean);
   const allFirsts  = "ABCDEFGHIJKL".split("").map(g => picks.groups[g]?.first).filter(Boolean);
-  // 3rd place teams = all teams not picked as 1st or 2nd
-  const usedTeams = new Set([...allFirsts, ...allSeconds]);
-  const thirdTeams = ALL_TEAMS.filter(t => !usedTeams.has(t));
+  const allSeconds = "ABCDEFGHIJKL".split("").map(g => picks.groups[g]?.second).filter(Boolean);
+  const allThirds  = picks.thirds.filter(Boolean);
+
+  // Teams picked as 1st or 2nd cannot be 3rd — remove them from list entirely
+  const usedAs12 = new Set([...allFirsts, ...allSeconds]);
+  const thirdTeams = ALL_TEAMS.filter(t => !usedAs12.has(t));
+
+  // Find 4th place teams — groups where all 3 of 1st, 2nd, and a 3rd pick are set
+  // The remaining team in that group is the 4th place team — grey it out
+  const fourthTeams = new Set();
+  "ABCDEFGHIJKL".split("").forEach(g => {
+    const first  = picks.groups[g]?.first;
+    const second = picks.groups[g]?.second;
+    if (!first || !second) return;
+    const groupTeams = GROUPS_DEF[g];
+    const pickedFromGroup = allThirds.filter(t => groupTeams.includes(t));
+    // If a 3rd place team is picked from this group, the remaining team is 4th
+    if (pickedFromGroup.length > 0) {
+      const remaining = groupTeams.filter(t => t !== first && t !== second && !pickedFromGroup.includes(t));
+      remaining.forEach(t => fourthTeams.add(t));
+    }
+  });
 
   let h = `<p style="font-size:13px;color:#666;margin-bottom:14px">
     Pick the 8 best third-place teams you think will advance to the Round of 32.
@@ -365,7 +383,8 @@ function renderThirds() {
     const otherPicks = new Set(picks.thirds.filter((t, j) => j !== i && t));
     const opts = thirdTeams.map(t => {
       const taken = otherPicks.has(t);
-      return `<option value="${t}" ${val===t?'selected':''} ${taken?'disabled':''}>${t}${taken?' (already picked)':''}</option>`;
+      const isFourth = fourthTeams.has(t) && !taken;
+      return `<option value="${t}" ${val===t?'selected':''} ${taken||isFourth?'disabled':''}>${t}${taken?' (already picked)':isFourth?' (4th place — cannot advance)':''}</option>`;
     }).join('');
     h += `<div>
       <div class="pick-label">3rd Place #${i+1}</div>
