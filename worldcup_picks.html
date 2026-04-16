@@ -874,107 +874,98 @@ function saveBracketPDF() {
   doc.text('KNOCKOUT BRACKET', M, y-0.5);
   y += 2;
 
-  const koH = H - y - M;   // available height
-  // 11 columns: L(R32,R16,QF,SF,Final) + center(champ) + R(Final,SF,QF,R16,R32)
-  // but right side has no final col, so: 5 left + 1 center + 4 right = 10 cols
-  const numCols = 10;
+  const koH = H - y - M;
+  // 11 cols: L(R32,R16,QF,SF,Final) + center(champ) + R(Final,SF,QF,R16,R32)
+  const numCols = 11;
   const colW = (W - 2*M) / numCols;
-  const mh = 7.5;  // match height (2 teams)
-  const mg = 2;    // gap between matches
+  const mh = 7.5;   // match box height
+  const mg = 1.5;   // gap between matches in same column
 
-  // helper: draw one match box at (x,y,w)
   function drawMatch(x, my, w, t1, t2, winner) {
     const half = mh/2;
     sF(LGRAY); sD(BORDER); doc.setLineWidth(0.15);
     doc.rect(x, my, w, mh, 'FD');
-    // divider
     sD(BORDER); doc.line(x, my+half, x+w, my+half);
     doc.setFontSize(5); doc.setLineWidth(0.1);
-    // team 1
-    const w1 = winner && winner===t1;
-    doc.setFont(undefined, w1?'bold':'normal');
+    const w1 = !!(winner && winner===t1);
+    const w2 = !!(winner && winner===t2);
+    // top half
     if(w1){sF(LGOLD);sD(GOLD);doc.setLineWidth(0.3);doc.rect(x,my,w,half,'FD');doc.setLineWidth(0.1);}
-    sC(t1?GREEN:BORDER);
-    if(w1) sC(AMBER);
-    doc.text(t1||'—', x+1.5, my+half-1.5, {maxWidth:w-3});
-    // team 2
-    const w2 = winner && winner===t2;
-    doc.setFont(undefined, w2?'bold':'normal');
+    doc.setFont(undefined, w1?'bold':'normal');
+    sC(w1?AMBER:(t1?GREEN:BORDER));
+    doc.text(t1||'-', x+1.5, my+half-1.5, {maxWidth:w-3});
+    // bottom half
     if(w2){sF(LGOLD);sD(GOLD);doc.setLineWidth(0.3);doc.rect(x,my+half,w,half,'FD');doc.setLineWidth(0.1);}
-    sC(t2?GREEN:BORDER);
-    if(w2) sC(AMBER);
-    doc.text(t2||'—', x+1.5, my+mh-1.5, {maxWidth:w-3});
+    doc.setFont(undefined, w2?'bold':'normal');
+    sC(w2?AMBER:(t2?GREEN:BORDER));
+    doc.text(t2||'-', x+1.5, my+mh-1.5, {maxWidth:w-3});
   }
 
-  // helper: draw column header + evenly spaced matches
-  function drawCol(colIdx, label, matchData, reversed) {
-    const x = M + colIdx*colW;
+  // Draw a column: evenly distribute n matches across the full koH
+  function drawCol(cx, label, matchData) {
     const w = colW - 1;
-    // header
     sC(GRAY); doc.setFontSize(5.5); doc.setFont(undefined,'bold');
-    doc.text(label, x+w/2, y+3, {align:'center'});
+    doc.text(label, cx+w/2, y+3, {align:'center'});
     sD(BORDER); doc.setLineWidth(0.1);
-    doc.line(x, y+3.5, x+w, y+3.5);
-
+    doc.line(cx, y+3.5, cx+w, y+3.5);
     const n = matchData.length;
-    const totalH = n*mh + (n-1)*mg;
-    const startY = y + 5 + (koH-5-totalH)/2;
+    const usableH = koH - 5;
+    // space each match evenly within usableH
+    const slot = usableH / n;
     matchData.forEach(function(m, mi){
-      const my = reversed
-        ? startY + (n-1-mi)*(mh+mg)
-        : startY + mi*(mh+mg);
-      drawMatch(x, my, w, m[0], m[1], m[2]);
+      const my = y + 5 + mi*slot + (slot-mh)/2;
+      drawMatch(cx, my, w, m[0], m[1], m[2]);
     });
   }
 
-  // Build match data arrays
-  // LEFT: R32[0-7], R16[0-3], QF[0,2], SF[0], Final
   function r32m(i){ const [a,b]=getR32Teams(i); return [a!=='TBD'?a:'',b!=='TBD'?b:'',picks.r32[i]]; }
   function r16m(i){ const [a,b]=getR16Teams(i); return [a!=='TBD'?a:'',b!=='TBD'?b:'',picks.r16[i]]; }
   function qfm(i) { const [a,b]=getQFTeams(i);  return [a!=='TBD'?a:'',b!=='TBD'?b:'',picks.qf[i]]; }
   function sfm(i) { const [a,b]=getSFTeams(i);  return [a!=='TBD'?a:'',b!=='TBD'?b:'',picks.sf[i]]; }
 
-  // Correct FIFA paths:
-  // Left:  Path A R32[M74,M77,M73,M75]=idx[1,4,0,2] + Path B R32[M83,M84,M81,M82]=idx[10,11,8,9]
-  //        R16[M89,M90]=idx[0,1] + R16[M93,M94]=idx[4,5] → QF[M97,M98]=idx[0,1] → SF[0]
-  // Right: Path C R32[M76,M78,M79,M80]=idx[3,5,6,7] + Path D R32[M86,M88,M85,M87]=idx[13,15,12,14]
-  //        R16[M91,M92]=idx[2,3] + R16[M95,M96]=idx[6,7] → QF[M99,M100]=idx[2,3] → SF[1]
+  // FIFA paths (left → SF[0], right → SF[1])
   var lR32 = [1,4,0,2,10,11,8,9].map(r32m);
   var lR16 = [0,1,4,5].map(r16m);
   var lQF  = [0,1].map(qfm);
   var lSF  = [sfm(0)];
-  var fin  = [[picks.sf[0]||'',picks.sf[1]||'',picks.final[0]]];
+  var finM = [[picks.sf[0]||'',picks.sf[1]||'',picks.final[0]]];
   var rSF  = [sfm(1)];
   var rQF  = [2,3].map(qfm);
   var rR16 = [2,3,6,7].map(r16m);
   var rR32 = [3,5,6,7,13,15,12,14].map(r32m);
 
-  drawCol(0,'R32',lR32,false);
-  drawCol(1,'R16',lR16,false);
-  drawCol(2,'QF', lQF, false);
-  drawCol(3,'SF', lSF, false);
-  drawCol(4,'Final',fin,false);
+  // Left side: cols 0-4
+  drawCol(M + 0*colW, 'R32',   lR32);
+  drawCol(M + 1*colW, 'R16',   lR16);
+  drawCol(M + 2*colW, 'QF',    lQF);
+  drawCol(M + 3*colW, 'SF',    lSF);
+  drawCol(M + 4*colW, 'Final', finM);
 
-  // Center champion box
-  const cx = M + 5*colW;
-  const cw = colW - 1;
+  // Center champion — col 5
   const champ = picks.final[0] || '';
-  sF(champ?LGOLD:LGRAY); sD(champ?GOLD:BORDER); doc.setLineWidth(champ?0.5:0.2);
-  const champH = mh + 6;
+  const cx2 = M + 5*colW;
+  const cw2 = colW - 1;
+  const champH = 18;
   const champY = y + 5 + (koH - 5 - champH)/2;
-  doc.rect(cx, champY, cw, champH, 'FD');
-  doc.setFontSize(14); doc.setFont(undefined,'normal');
+  sF(champ?LGOLD:LGRAY); sD(champ?GOLD:BORDER);
+  doc.setLineWidth(champ?0.5:0.2);
+  doc.rect(cx2, champY, cw2, champH, 'FD');
+  // Trophy star instead of emoji (jsPDF can't render emoji)
+  doc.setFontSize(16); doc.setFont(undefined,'bold');
+  sC(champ?GOLD:BORDER);
+  doc.text('*', cx2+cw2/2, champY+9, {align:'center'});
+  doc.setFontSize(5); doc.setFont(undefined,'bold');
+  sC(GRAY); doc.text('CHAMPION', cx2+cw2/2, champY+13, {align:'center'});
+  doc.setFontSize(6); doc.setFont(undefined, champ?'bold':'normal');
   sC(champ?AMBER:BORDER);
-  doc.text('🏆', cx+cw/2, champY+7, {align:'center'});
-  doc.setFontSize(5.5); doc.setFont(undefined,'bold');
-  sC(GRAY); doc.text('CHAMPION', cx+cw/2, champY+11, {align:'center'});
-  doc.setFontSize(6); sC(champ?AMBER:BORDER);
-  doc.text(champ||'—', cx+cw/2, champY+14, {align:'center', maxWidth:cw-2});
+  doc.text(champ||'—', cx2+cw2/2, champY+17, {align:'center', maxWidth:cw2-2});
 
-  drawCol(6,'SF', rSF, false);
-  drawCol(7,'QF', rQF, false);
-  drawCol(8,'R16',rR16,false);
-  drawCol(9,'R32',rR32,false);
+  // Right side: cols 6-10 (mirrored: Final, SF, QF, R16, R32)
+  drawCol(M + 6*colW,  'Final', finM);
+  drawCol(M + 7*colW,  'SF',    rSF);
+  drawCol(M + 8*colW,  'QF',    rQF);
+  drawCol(M + 9*colW,  'R16',   rR16);
+  drawCol(M + 10*colW, 'R32',   rR32);
 
   // ── Footer ──
   sC(BORDER); doc.setFontSize(6); doc.setFont(undefined,'normal');
