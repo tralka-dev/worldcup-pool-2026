@@ -800,93 +800,90 @@ function updateSavePdfBtn() {
 function saveBracketPDF() {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-  const name = document.getElementById('entryName')?.value?.trim() || 'My Bracket';
+  const pname = document.getElementById('entryName')?.value?.trim() || 'My Bracket';
   const email = document.getElementById('entryEmail')?.value?.trim() || '';
   const now = new Date().toLocaleDateString('en-US', {year:'numeric',month:'long',day:'numeric'});
 
-  const W = 297; const H = 210;
-  const margin = 10;
+  const W = 297; const H = 210; const margin = 10;
   const GREEN  = [15, 110, 86];
-  const LGREEN = [225, 245, 235];
   const BLUE   = [26, 115, 232];
   const GOLD   = [245, 158, 11];
-  const LGOLD  = [254, 243, 199];
   const GRAY   = [100, 100, 100];
   const LGRAY  = [245, 245, 245];
+  const LGOLD  = [254, 243, 199];
   const BORDER = [220, 220, 220];
+  const DGREEN = [4, 52, 44];
 
-  // Header
-  doc.setFillColor(...BLUE);
-  doc.rect(0, 0, W, 18, 'F');
+  function setC(arr) { doc.setTextColor(arr[0],arr[1],arr[2]); }
+  function setF(arr) { doc.setFillColor(arr[0],arr[1],arr[2]); }
+  function setD(arr) { doc.setDrawColor(arr[0],arr[1],arr[2]); }
+
+  // Header bar
+  setF(BLUE); doc.rect(0,0,W,18,'F');
   doc.setTextColor(255,255,255);
   doc.setFontSize(14); doc.setFont(undefined,'bold');
   doc.text('FIFA World Cup 2026 — My Picks', margin, 12);
   doc.setFontSize(9); doc.setFont(undefined,'normal');
-  doc.text(`${name}${email?' · '+email:''}  ·  ${now}`, W - margin, 12, {align:'right'});
+  doc.text(pname + (email?' · '+email:'') + '  ·  ' + now, W-margin, 12, {align:'right'});
 
   let y = 24;
 
-  // ── Groups section ──
-  doc.setTextColor(...GRAY);
-  doc.setFontSize(8); doc.setFont(undefined,'bold');
-  doc.text('GROUP STAGE QUALIFIERS', margin, y);
-  y += 4;
+  // Groups
+  setC(GRAY); doc.setFontSize(8); doc.setFont(undefined,'bold');
+  doc.text('GROUP STAGE QUALIFIERS', margin, y); y += 4;
 
   const grpCols = 12; const grpW = (W - 2*margin) / grpCols; const grpH = 10;
-  'ABCDEFGHIJKL'.split('').forEach((g, gi) => {
+  'ABCDEFGHIJKL'.split('').forEach(function(g, gi) {
     const x = margin + gi * grpW;
-    const first  = picks.groups[g]?.first  || '';
-    const second = picks.groups[g]?.second || '';
-    doc.setFillColor(...LGRAY);
-    doc.rect(x, y, grpW-1, grpH, 'F');
-    doc.setDrawColor(...BORDER); doc.rect(x, y, grpW-1, grpH);
-    doc.setFontSize(7); doc.setFont(undefined,'bold'); doc.setTextColor(...GRAY);
-    doc.text(`Grp ${g}`, x + (grpW-1)/2, y + 2.5, {align:'center'});
-    doc.setFont(undefined,'normal');
-    doc.setTextColor(first ? ...GREEN : ...BORDER);
-    doc.setFontSize(6);
-    doc.text(first  || '—', x + (grpW-1)/2, y + 5.5, {align:'center', maxWidth: grpW-2});
-    doc.setTextColor(second? ...GREEN : ...BORDER);
-    doc.text(second || '—', x + (grpW-1)/2, y + 8.5, {align:'center', maxWidth: grpW-2});
+    const first  = picks.groups[g] ? picks.groups[g].first  : '';
+    const second = picks.groups[g] ? picks.groups[g].second : '';
+    setF(LGRAY); setD(BORDER); doc.setLineWidth(0.2);
+    doc.rect(x, y, grpW-1, grpH, 'FD');
+    doc.setFontSize(7); doc.setFont(undefined,'bold'); setC(GRAY);
+    doc.text('Grp '+g, x+(grpW-1)/2, y+2.5, {align:'center'});
+    doc.setFont(undefined,'normal'); doc.setFontSize(6);
+    setC(first ? GREEN : BORDER);
+    doc.text(first||'-', x+(grpW-1)/2, y+5.5, {align:'center', maxWidth:grpW-2});
+    setC(second ? GREEN : BORDER);
+    doc.text(second||'-', x+(grpW-1)/2, y+8.5, {align:'center', maxWidth:grpW-2});
   });
-  y += grpH + 4;
+  y += grpH + 5;
 
-  // ── Best 3rd ──
-  doc.setTextColor(...GRAY); doc.setFontSize(8); doc.setFont(undefined,'bold');
+  // Best 3rd
+  setC(GRAY); doc.setFontSize(8); doc.setFont(undefined,'bold');
   doc.text('BEST 3RD PLACE', margin, y); y += 4;
   const t3W = (W - 2*margin) / 8;
-  picks.thirds.forEach((t, i) => {
+  (picks.thirds || []).forEach(function(t, i) {
     const x = margin + i * t3W;
-    doc.setFillColor(...LGRAY);
-    doc.rect(x, y, t3W-1, 7, 'F');
-    doc.setDrawColor(...BORDER); doc.rect(x, y, t3W-1, 7);
+    setF(LGRAY); setD(BORDER);
+    doc.rect(x, y, t3W-1, 7, 'FD');
     doc.setFontSize(6); doc.setFont(undefined,'normal');
-    doc.setTextColor(t ? ...GREEN : ...BORDER);
-    doc.text(t||'—', x+(t3W-1)/2, y+4.5, {align:'center', maxWidth:t3W-2});
+    setC(t ? GREEN : BORDER);
+    doc.text(t||'-', x+(t3W-1)/2, y+4.5, {align:'center', maxWidth:t3W-2});
   });
   y += 7 + 6;
 
-  // ── Knockout rounds ──
-  doc.setTextColor(...GRAY); doc.setFontSize(8); doc.setFont(undefined,'bold');
+  // Knockout
+  setC(GRAY); doc.setFontSize(8); doc.setFont(undefined,'bold');
   doc.text('KNOCKOUT BRACKET', margin, y); y += 4;
 
   const rounds = [
-    {lbl:'Round of 32', teams:picks.r32||[], slots:16, pairs:8},
-    {lbl:'Round of 16', teams:picks.r16||[], slots:8,  pairs:4},
-    {lbl:'QF',          teams:picks.qf ||[], slots:4,  pairs:2},
-    {lbl:'SF',          teams:picks.sf ||[], slots:2,  pairs:1},
-    {lbl:'Final / Champion', teams: picks.champion?[picks.champion]:[], slots:1, pairs:1, isChamp:true},
+    {lbl:'Round of 32', teams:picks.r32||[], pairs:8},
+    {lbl:'Round of 16', teams:picks.r16||[], pairs:4},
+    {lbl:'Quarter-finals', teams:picks.qf||[], pairs:2},
+    {lbl:'Semi-finals',  teams:picks.sf||[], pairs:1},
+    {lbl:'Champion',     teams:picks.champion?[picks.champion]:[], pairs:1, isChamp:true},
   ];
 
   const koH = H - y - margin;
   const colW = (W - 2*margin) / 5;
   const matchH = 9;
 
-  rounds.forEach((rnd, ri) => {
+  rounds.forEach(function(rnd, ri) {
     const cx = margin + ri * colW;
-    doc.setFontSize(7); doc.setFont(undefined,'bold'); doc.setTextColor(...GRAY);
-    doc.text(rnd.lbl, cx + colW/2, y, {align:'center'});
-    doc.setDrawColor(...BORDER);
+    doc.setFontSize(7); doc.setFont(undefined,'bold'); setC(GRAY);
+    doc.text(rnd.lbl, cx+colW/2, y, {align:'center'});
+    setD(BORDER); doc.setLineWidth(0.2);
     doc.line(cx, y+1.5, cx+colW-2, y+1.5);
 
     const numMatches = rnd.isChamp ? 1 : rnd.pairs;
@@ -895,39 +892,36 @@ function saveBracketPDF() {
 
     if (rnd.isChamp) {
       const champ = picks.champion || '';
-      doc.setFillColor(...LGOLD);
-      doc.rect(cx, startY, colW-2, matchH+2, 'F');
-      doc.setDrawColor(...GOLD); doc.setLineWidth(0.5);
-      doc.rect(cx, startY, colW-2, matchH+2);
+      setF(LGOLD); setD(GOLD); doc.setLineWidth(0.5);
+      doc.rect(cx, startY, colW-2, matchH+2, 'FD');
       doc.setLineWidth(0.2);
       doc.setFontSize(8); doc.setFont(undefined,'bold');
-      doc.setTextColor(...(champ ? [146,64,14] : BORDER));
-      doc.text(champ||'—', cx+(colW-2)/2, startY+(matchH+2)/2+1, {align:'center', maxWidth:colW-4});
+      setC(champ ? [146,64,14] : BORDER);
+      doc.text(champ||'-', cx+(colW-2)/2, startY+(matchH+2)/2+1, {align:'center', maxWidth:colW-4});
     } else {
-      for (let pi=0; pi<numMatches; pi++) {
+      for (var pi=0; pi<numMatches; pi++) {
         const t1 = rnd.teams[pi*2]   || '';
         const t2 = rnd.teams[pi*2+1] || '';
         const my = startY + pi*(matchH+3);
-        doc.setFillColor(...LGRAY);
-        doc.rect(cx, my, colW-2, matchH, 'F');
-        doc.setDrawColor(...BORDER); doc.setLineWidth(0.2);
-        doc.rect(cx, my, colW-2, matchH);
+        setF(LGRAY); setD(BORDER); doc.setLineWidth(0.2);
+        doc.rect(cx, my, colW-2, matchH, 'FD');
         doc.line(cx, my+matchH/2, cx+colW-2, my+matchH/2);
-        doc.setFontSize(6.5); doc.setFont(undefined, t1?'bold':'normal');
-        doc.setTextColor(...(t1?GREEN:BORDER));
-        doc.text(t1||'—', cx+2, my+matchH/4+1.5, {maxWidth:colW-4});
+        doc.setFontSize(6.5);
+        doc.setFont(undefined, t1?'bold':'normal');
+        setC(t1 ? GREEN : BORDER);
+        doc.text(t1||'-', cx+2, my+matchH/4+1.5, {maxWidth:colW-4});
         doc.setFont(undefined, t2?'bold':'normal');
-        doc.setTextColor(...(t2?GREEN:BORDER));
-        doc.text(t2||'—', cx+2, my+matchH*3/4+1.5, {maxWidth:colW-4});
+        setC(t2 ? GREEN : BORDER);
+        doc.text(t2||'-', cx+2, my+matchH*3/4+1.5, {maxWidth:colW-4});
       }
     }
   });
 
   // Footer
-  doc.setTextColor(...GRAY); doc.setFontSize(7); doc.setFont(undefined,'normal');
+  setC(GRAY); doc.setFontSize(7); doc.setFont(undefined,'normal');
   doc.text('World Cup Pool 2026  ·  tralka-dev.github.io/worldcup-pool-2026/worldcup_picks.html', W/2, H-3, {align:'center'});
 
-  doc.save(`WorldCupPool2026_${name.replace(/\s+/g,'_')}.pdf`);
+  doc.save('WorldCupPool2026_' + pname.replace(/\s+/g,'_') + '.pdf');
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
