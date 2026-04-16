@@ -480,31 +480,6 @@ function renderR32()    { renderKO('r32',  16, R32_MATCHES, getR32Teams, R32_MAT
 function renderR16()    { renderKO('r16',   8, null, getR16Teams, R16_MN, 'panel-r16'); }
 function renderQF()     { renderKO('qf',    4, null, getQFTeams,  QF_MN,  'panel-qf'); }
 function renderSF()     { renderKO('sf',    2, null, getSFTeams,  SF_MN,  'panel-sf'); }
-function _renderFinal_removed()  {
-  const [h1,h2] = getFinTeams();
-  const sel = picks.final[0];
-  const isLocked = locked.final;
-  let h = `<div class="advance-bar">
-    <button class="btn-advance ${isLocked?'locked-btn':sel?'ready':'disabled'}"
-      onclick="${!isLocked&&sel?`advanceWinners('final')`:''}" ${isLocked||!sel?'disabled':''}>
-      ${isLocked?'✓ Winner Advanced':'Advance Winner'}
-    </button>
-    <span class="prog-text ${!sel&&!isLocked?'warn':''}">${isLocked?'Selection locked':sel?'Winner selected':'Select the Final winner'}</span>
-    ${isLocked?`<button class="btn-edit" onclick="editRound('final')">Edit</button>`:''}
-  </div><div class="ko-grid">`;
-  const hTBD=h1==="TBD",aTBD=h2==="TBD";
-  h+=`<div class="kocard ${sel?'complete':''}">
-    <div class="kohead"><span>Match 104 — World Cup Final</span>${sel?`<span class="sel-lbl">✓ ${sel}</span>`:''}</div>
-    <div class="koteam ${sel===h1?'sel':''} ${hTBD||isLocked?'tbd':''}" onclick="${!isLocked&&!hTBD?`selKO('final',0,'${h1.replace(/'/g,"\\'")}')`:''}" >
-      <div class="kochk"><div class="kodot"></div></div><span class="kotname">${h1}</span>
-    </div>
-    <div class="koteam ${sel===h2?'sel':''} ${aTBD||isLocked?'tbd':''}" onclick="${!isLocked&&!aTBD?`selKO('final',0,'${h2.replace(/'/g,"\\'")}')`:''}" >
-      <div class="kochk"><div class="kodot"></div></div><span class="kotname">${h2}</span>
-    </div>
-  </div></div>`;
-  document.getElementById('panel-final').innerHTML = h;
-  updateProgress();
-}
 
 function renderChampion() {
   const finalists = [picks.sf[0], picks.sf[1]].filter(Boolean);
@@ -517,7 +492,7 @@ function renderChampion() {
       <p style="font-size:13px;color:#666;margin-bottom:16px">
         ${finalists.length>0?'Pick which of your semi-final winners will lift the trophy:':'Select your champion'}
       </p>
-      <select class="champ-select ${picks.champion?'filled':''}" onchange="picks.champion=this.value;updateProgress()">
+      <select class="champ-select ${picks.champion?'filled':''}" onchange="picks.champion=this.value;updateProgress();renderBracket()">
         <option value="">— Select champion —</option>${opts}
       </select>
       ${picks.champion?`<div style="font-size:13px;color:#1e7e34;font-weight:500;margin-top:12px">✓ ${picks.champion} will be World Champion</div>`:''}
@@ -535,6 +510,7 @@ function setGroup(g, pos, val) {
   }
   clearFromRound('r32');
   renderGroups();
+  renderBracket(); // ← FIXED: update live preview on group change
 }
 
 function setThird(i, val) {
@@ -546,6 +522,7 @@ function setThird(i, val) {
   clearFromRound('r32');
   if (document.querySelector('.panel.active').id === 'panel-thirds') renderThirds();
   updateProgress();
+  renderBracket(); // ← FIXED: update live preview on third-place change
 }
 
 function selKO(round, idx, team) {
