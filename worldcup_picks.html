@@ -116,14 +116,23 @@ header p{font-size:14px;color:#666}
 .bgrp-lbl{font-size:10px;font-weight:600;color:#888;text-transform:uppercase;margin-bottom:4px}
 .bgrp-team{font-size:11px;font-weight:500;color:#0F6E56;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bgrp-team.empty{color:#ccc;font-weight:400}
-.bracket-ko{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;overflow-x:auto}
-.bko-col{display:flex;flex-direction:column;gap:4px;min-width:80px}
-.bko-lbl{font-size:10px;font-weight:600;color:#888;text-align:center;text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px;padding-bottom:4px;border-bottom:1px solid #e0e0e0}
+.bracket-ko{display:flex;align-items:stretch;overflow-x:auto;min-width:600px;gap:0}
+.bko-half{display:flex;flex:1;gap:0}
+.bko-half.right{flex-direction:row-reverse}
+.bko-col{display:flex;flex-direction:column;justify-content:space-around;min-width:88px;flex:1;padding:0 3px}
+.bko-col.center{min-width:76px;flex:0 0 76px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:6px;padding:0 2px}
+.bko-lbl{font-size:10px;font-weight:600;color:#888;text-align:center;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;padding-bottom:3px;border-bottom:1px solid #e0e0e0}
+.bko-col-wrap{display:flex;flex-direction:column;height:100%}
+.bko-matches{display:flex;flex-direction:column;justify-content:space-around;flex:1;gap:4px}
 .bko-match{background:white;border:1px solid #e0e0e0;border-radius:6px;overflow:hidden}
-.bko-team{padding:4px 8px;font-size:11px;font-weight:500;color:#0F6E56;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-bottom:1px solid #f0f0f0}
+.bko-team{padding:4px 7px;font-size:11px;font-weight:500;color:#0F6E56;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-bottom:1px solid #f0f0f0}
 .bko-team:last-child{border-bottom:none}
 .bko-team.empty{color:#ccc;font-weight:400}
-.bko-team.champ{background:#FEF3C7;color:#92400E}
+.bko-team.winner{background:#FEF3C7;color:#92400E;font-weight:600}
+.bko-champ-box{background:#FEF3C7;border:2px solid #F59E0B;border-radius:8px;padding:8px 10px;text-align:center;width:72px}
+.bko-champ-icon{font-size:18px;margin-bottom:2px}
+.bko-champ-name{font-size:11px;font-weight:700;color:#92400E;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bko-champ-name.empty{color:#ccc;font-weight:400}
 </style>
 </head>
 <body>
@@ -723,69 +732,85 @@ function renderBracketGroups() {
 }
 
 function renderBracketKO() {
-  let h = '';
-
-  // Round of 32: always show both teams from the fixed draw
-  h += `<div class="bko-col"><div class="bko-lbl">Round of 32</div>`;
-  for (let i = 0; i < 16; i++) {
-    const [t1, t2] = getR32Teams(i);
+  // Helper to build a match box
+  function matchBox(t1, t2, winner) {
     const s1 = t1 !== 'TBD' ? t1 : '';
     const s2 = t2 !== 'TBD' ? t2 : '';
-    const winner = picks.r32[i] || '';
-    h += `<div class="bko-match">
-      <div class="bko-team ${s1?'':'empty'} ${winner&&winner===s1?'champ':''}">${s1||'—'}</div>
-      <div class="bko-team ${s2?'':'empty'} ${winner&&winner===s2?'champ':''}">${s2||'—'}</div>
+    return `<div class="bko-match">
+      <div class="bko-team ${s1?'':'empty'} ${winner&&winner===s1?'winner':''}">${s1||'—'}</div>
+      <div class="bko-team ${s2?'':'empty'} ${winner&&winner===s2?'winner':''}">${s2||'—'}</div>
     </div>`;
   }
-  h += '</div>';
 
-  // Round of 16
-  h += `<div class="bko-col"><div class="bko-lbl">Round of 16</div>`;
+  function col(label, matchesHtml) {
+    return `<div class="bko-col">
+      <div class="bko-col-wrap">
+        <div class="bko-lbl">${label}</div>
+        <div class="bko-matches">${matchesHtml}</div>
+      </div>
+    </div>`;
+  }
+
+  // LEFT HALF: R32 matches 0-7, R16 matches 0-3, QF matches 0-1, SF match 0
+  let leftR32 = '', leftR16 = '', leftQF = '', leftSF = '';
   for (let i = 0; i < 8; i++) {
-    const [t1, t2] = getR16Teams(i);
-    const s1 = t1 !== 'TBD' ? t1 : '';
-    const s2 = t2 !== 'TBD' ? t2 : '';
-    const winner = picks.r16[i] || '';
-    h += `<div class="bko-match">
-      <div class="bko-team ${s1?'':'empty'} ${winner&&winner===s1?'champ':''}">${s1||'—'}</div>
-      <div class="bko-team ${s2?'':'empty'} ${winner&&winner===s2?'champ':''}">${s2||'—'}</div>
-    </div>`;
+    const [t1,t2] = getR32Teams(i);
+    leftR32 += matchBox(t1, t2, picks.r32[i]);
   }
-  h += '</div>';
-
-  // Quarter-finals
-  h += `<div class="bko-col"><div class="bko-lbl">QF</div>`;
   for (let i = 0; i < 4; i++) {
-    const [t1, t2] = getQFTeams(i);
-    const s1 = t1 !== 'TBD' ? t1 : '';
-    const s2 = t2 !== 'TBD' ? t2 : '';
-    const winner = picks.qf[i] || '';
-    h += `<div class="bko-match">
-      <div class="bko-team ${s1?'':'empty'} ${winner&&winner===s1?'champ':''}">${s1||'—'}</div>
-      <div class="bko-team ${s2?'':'empty'} ${winner&&winner===s2?'champ':''}">${s2||'—'}</div>
-    </div>`;
+    const [t1,t2] = getR16Teams(i);
+    leftR16 += matchBox(t1, t2, picks.r16[i]);
   }
-  h += '</div>';
-
-  // Semi-finals
-  h += `<div class="bko-col"><div class="bko-lbl">SF</div>`;
   for (let i = 0; i < 2; i++) {
-    const [t1, t2] = getSFTeams(i);
-    const s1 = t1 !== 'TBD' ? t1 : '';
-    const s2 = t2 !== 'TBD' ? t2 : '';
-    const winner = picks.sf[i] || '';
-    h += `<div class="bko-match">
-      <div class="bko-team ${s1?'':'empty'} ${winner&&winner===s1?'champ':''}">${s1||'—'}</div>
-      <div class="bko-team ${s2?'':'empty'} ${winner&&winner===s2?'champ':''}">${s2||'—'}</div>
-    </div>`;
+    const [t1,t2] = getQFTeams(i);
+    leftQF += matchBox(t1, t2, picks.qf[i]);
   }
-  h += '</div>';
+  {
+    const [t1,t2] = getSFTeams(0);
+    leftSF = matchBox(t1, t2, picks.sf[0]);
+  }
 
-  // Champion
+  // RIGHT HALF: R32 matches 8-15, R16 matches 4-7, QF matches 2-3, SF match 1
+  let rightR32 = '', rightR16 = '', rightQF = '', rightSF = '';
+  for (let i = 8; i < 16; i++) {
+    const [t1,t2] = getR32Teams(i);
+    rightR32 += matchBox(t1, t2, picks.r32[i]);
+  }
+  for (let i = 4; i < 8; i++) {
+    const [t1,t2] = getR16Teams(i);
+    rightR16 += matchBox(t1, t2, picks.r16[i]);
+  }
+  for (let i = 2; i < 4; i++) {
+    const [t1,t2] = getQFTeams(i);
+    rightQF += matchBox(t1, t2, picks.qf[i]);
+  }
+  {
+    const [t1,t2] = getSFTeams(1);
+    rightSF = matchBox(t1, t2, picks.sf[1]);
+  }
+
   const champ = picks.champion || '';
-  h += `<div class="bko-col"><div class="bko-lbl">Champion</div>
-    <div class="bko-match"><div class="bko-team champ ${champ?'':'empty'}">${champ||'—'}</div></div>
-  </div>`;
+
+  const h = `
+    <div class="bko-half left">
+      ${col('R32', leftR32)}
+      ${col('R16', leftR16)}
+      ${col('QF', leftQF)}
+      ${col('SF', leftSF)}
+    </div>
+    <div class="bko-col center">
+      <div class="bko-champ-box">
+        <div class="bko-champ-icon">🏆</div>
+        <div class="bko-lbl" style="border:none;margin:0;padding:0">Champion</div>
+        <div class="bko-champ-name ${champ?'':'empty'}">${champ||'—'}</div>
+      </div>
+    </div>
+    <div class="bko-half right">
+      ${col('R32', rightR32)}
+      ${col('R16', rightR16)}
+      ${col('QF', rightQF)}
+      ${col('SF', rightSF)}
+    </div>`;
 
   document.getElementById('bracketKO').innerHTML = h;
 }
