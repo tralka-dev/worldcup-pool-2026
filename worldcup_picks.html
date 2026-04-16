@@ -305,9 +305,9 @@ const locked = {r32:false, r16:false, qf:false, sf:false, final:false};
 // We'll derive teams from group picks
 const R32_MATCHES = [
   {mn:73, desc:"2nd A vs 2nd B"},
-  {mn:74, desc:"1st C vs 2nd F"},
-  {mn:75, desc:"1st E vs Best 3rd"},
-  {mn:76, desc:"1st F vs 2nd C"},
+  {mn:74, desc:"1st E vs Best 3rd"},
+  {mn:75, desc:"1st F vs 2nd C"},
+  {mn:76, desc:"1st C vs 2nd F"},
   {mn:77, desc:"1st I vs Best 3rd"},
   {mn:78, desc:"2nd E vs 2nd I"},
   {mn:79, desc:"1st A vs Best 3rd"},
@@ -336,10 +336,10 @@ function getR32Teams(idx) {
   const q2 = (gr) => g[gr]?.second || "TBD";
   const b = (i) => t[i] || "TBD";
   const map = [
-    [q2("A"), q2("B")], [q1("C"), q2("F")], [q1("E"), b(0)], [q1("F"), q2("C")],
-    [q1("I"), b(1)],    [q2("E"), q2("I")], [q1("A"), b(2)], [q1("L"), b(3)],
-    [q1("D"), b(4)],    [q1("G"), b(5)],    [q2("K"), q2("L")],[q1("H"), q2("J")],
-    [q1("B"), b(6)],    [q1("J"), q2("H")], [q1("K"), b(7)],  [q2("D"), q2("G")],
+    [q2("A"), q2("B")], [q1("E"), b(0)],    [q1("F"), q2("C")], [q1("C"), q2("F")],
+    [q1("I"), b(1)],    [q2("E"), q2("I")], [q1("A"), b(2)],    [q1("L"), b(3)],
+    [q1("D"), b(4)],    [q1("G"), b(5)],    [q2("K"), q2("L")], [q1("H"), q2("J")],
+    [q1("B"), b(6)],    [q1("J"), q2("H")], [q1("K"), b(7)],    [q2("D"), q2("G")],
   ];
   return map[idx];
 }
@@ -762,7 +762,12 @@ function renderBracketKO() {
     </div>`;
   }
 
-  // LEFT HALF: R32 matches 0-7, R16 matches 0-3, QF matches 0-1, SF match 0
+  // LEFT HALF:  R32[0-7] → R16[0-3] → QF[0,2] → SF[0]
+  // RIGHT HALF: R32[8-15] → R16[4-7] → QF[1,3] → SF[1]
+  // QF[0] uses R16[0,1] (left)   QF[2] uses R16[2,3] (left)
+  // QF[1] uses R16[4,5] (right)  QF[3] uses R16[6,7] (right)
+  // SF[0] = winner(QF[0]) vs winner(QF[1])  ← cross: left QF[0] vs right QF[1]
+  // SF[1] = winner(QF[2]) vs winner(QF[3])  ← cross: left QF[2] vs right QF[3]
   let leftR32 = '', leftR16 = '', leftQF = '', leftSF = '';
   for (let i = 0; i < 8; i++) {
     const [t1,t2] = getR32Teams(i);
@@ -772,7 +777,8 @@ function renderBracketKO() {
     const [t1,t2] = getR16Teams(i);
     leftR16 += matchBox(t1, t2, picks.r16[i]);
   }
-  for (let i = 0; i < 2; i++) {
+  // Left QF: QF[0] (uses R16[0,1]) and QF[2] (uses R16[2,3])
+  for (let i of [0, 2]) {
     const [t1,t2] = getQFTeams(i);
     leftQF += matchBox(t1, t2, picks.qf[i]);
   }
@@ -781,7 +787,7 @@ function renderBracketKO() {
     leftSF = matchBox(t1, t2, picks.sf[0]);
   }
 
-  // RIGHT HALF: R32 matches 8-15, R16 matches 4-7, QF matches 2-3, SF match 1
+  // RIGHT HALF: R32[8-15] → R16[4-7] → QF[1,3] → SF[1]
   let rightR32 = '', rightR16 = '', rightQF = '', rightSF = '';
   for (let i = 8; i < 16; i++) {
     const [t1,t2] = getR32Teams(i);
@@ -791,7 +797,8 @@ function renderBracketKO() {
     const [t1,t2] = getR16Teams(i);
     rightR16 += matchBox(t1, t2, picks.r16[i]);
   }
-  for (let i = 2; i < 4; i++) {
+  // Right QF: QF[1] (uses R16[4,5]) and QF[3] (uses R16[6,7])
+  for (let i of [1, 3]) {
     const [t1,t2] = getQFTeams(i);
     rightQF += matchBox(t1, t2, picks.qf[i]);
   }
