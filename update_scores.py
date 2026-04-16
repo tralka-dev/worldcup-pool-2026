@@ -2,13 +2,20 @@
 World Cup Pool 2026 — Automated Score Updater
 Supports multiple entries per participant.
 
-Fixes:
-- Skips Timestamp column (col A), Entry Name is col B, picks start col C
-- Correct round structure: GROUP(24) + 3RD(8) + R32(16) + R16(8) + QF(4) + SF(2) + FINAL(1) + CHAMPION(1)
-- Duplicate rule: if same team appears more than once in R16 onwards, points awarded only once
-- Email column included in Leaderboard output
-- Correct point values: GROUP=1, 3RD=1, R16=2, QF=3, SF=4, FINAL=5, CHAMPION=7
-- Picks sheet headers renamed to short names on every run
+Column layout (0-indexed):
+  Col 0     (A)   = Timestamp
+  Col 1     (B)   = Entry Name
+  Col 2-25  (C-Z) = Group stage picks (24 cols, Groups A-L, 1st+2nd each)
+  Col 26-33       = Best 3rd place picks (8 cols)
+  Col 34-49       = Round of 32 picks (16 cols)
+  Col 50-57       = Round of 16 picks (8 cols)
+  Col 58-61       = Quarter-final picks (4 cols)
+  Col 62-63       = Semi-final picks (2 cols)
+  Col 64          = Final winner / Champion (1 col)
+  Col 65          = Email
+
+Point values:
+  GROUP/3RD = 1, R32 = 2, R16 = 3, QF = 4, SF = 5, FINAL = 5, CHAMPION = 7
 """
 
 import os
@@ -34,7 +41,8 @@ POINTS = {
     "R16":    3,
     "QF":     4,
     "SF":     5,
-    "WINNER": 7,
+    "FINAL":  5,   # correct finalist pick
+    "WINNER": 7,   # correct champion pick
 }
 
 ROUND_MAP = {
@@ -46,51 +54,22 @@ ROUND_MAP = {
     "FINAL":          "FINAL",
 }
 
-# Picks sheet column layout (0-indexed):
-# Col 0     (A)      = Timestamp
-# Col 1     (B)      = Entry Name
-# Col 2-25  (C-Z)    = Group stage picks (24 cols, Groups A-L, 1st and 2nd pick each)
-# Col 26-33 (AA-AH)  = 3rd Place picks (8 cols)
-# Col 34-49 (AI-AX)  = Round of 32 picks (16 cols)
-# Col 50-57 (AY-BF)  = Round of 16 picks (8 cols)
-# Col 58-61 (BG-BJ)  = Quarter-final picks (4 cols)
-# Col 62-63 (BK-BL)  = Semi-final picks (2 cols)
-# Col 64    (BM)     = Champion pick (1 col)
-# Col 67    (BP)     = Email Address
-
-ROUND_COLS = [
-    ("GROUP", 2,  25),
-    ("3RD",   26, 33),
-    ("R32",   34, 49),
-    ("R16",   50, 57),
-    ("QF",    58, 61),
-    ("SF",    62, 63),
-]
 CHAMPION_COL = 64
 EMAIL_COL    = 65
 
-# ── Short header names (68 columns total) ─────────────────────────────────────
 SHORT_HEADERS = (
     ["Timestamp", "Entry Name"]
-    # Group stage: Groups A-L, 1st and 2nd pick each (24 cols)
     + [f"Grp {g} {n}" for g in "ABCDEFGHIJKL" for n in ["1st", "2nd"]]
-    # 3rd place picks (8 cols)
     + [f"3rd {i+1}" for i in range(8)]
-    # Round of 32 (16 cols)
     + [f"R32-{i+1}" for i in range(16)]
-    # Round of 16 (8 cols)
     + [f"R16-{i+1}" for i in range(8)]
-    # Quarter-finals (4 cols)
     + [f"QF-{i+1}" for i in range(4)]
-    # Semi-finals (2 cols)
     + ["SF-1", "SF-2"]
-    # Champion + Email
     + ["Champion", "Email"]
 )
 
 
 def rename_picks_headers(service):
-    """Overwrite row 1 of the Picks sheet with short column names."""
     service.spreadsheets().values().update(
         spreadsheetId=SPREADSHEET_ID,
         range="Picks!A1",
@@ -106,7 +85,7 @@ def fetch_standings_and_results():
     advanced_teams = set()
     third_place = []
 
-    # Fetch group stage standings
+    # Group stage standings
     try:
         r = requests.get(f"{base}/competitions/{WC2026_ID}/standings", headers=headers, timeout=10)
         r.raise_for_status()
@@ -132,7 +111,7 @@ def fetch_standings_and_results():
     for _, _, team in third_place[:8]:
         advanced_teams.add(("3RD", team))
 
-    # Fetch knockout results
+    # Knockout results
     try:
         r = requests.get(f"{base}/competitions/{WC2026_ID}/matches?stage=KNOCKOUT", headers=headers, timeout=10)
         r.raise_for_status()
@@ -150,8 +129,11 @@ def fetch_standings_and_results():
             winner = home if home_score > away_score else away
             loser  = away if winner == home else home
             advanced_teams.add((stage, winner))
+            # Both finalists get FINAL credit; winner also gets WINNER credit
             if stage == "FINAL":
+                advanced_teams.add(("FINAL", loser))   # runner-up also reached final
                 advanced_teams.add(("WINNER", winner))
+            # Both teams in R32 get R32 credit (they qualified)
             if stage == "R32":
                 advanced_teams.add(("R32", loser))
     except Exception as e:
@@ -161,7 +143,6 @@ def fetch_standings_and_results():
 
 
 def get_cell(row, col):
-    """Safely get a cell value from a row."""
     if col < len(row) and row[col]:
         return row[col].strip()
     return None
@@ -171,97 +152,83 @@ def calculate_scores(picks_rows, advanced_teams):
     entries = []
     name_counts = defaultdict(int)
 
-    for row in picks_rows[1:]:  # Skip header row
+    for row in picks_rows[1:]:  # skip header
         if not row or len(row) < 2 or not row[1]:
             continue
-
         raw_name = row[1].strip()
         if not raw_name:
             continue
 
         email = get_cell(row, EMAIL_COL) or ""
 
-        # Auto-number duplicate names
         name_counts[raw_name] += 1
         count = name_counts[raw_name]
         display_name = raw_name if count == 1 else f"{raw_name} ({count})"
 
-        grp_pts   = 0
-        r32_pts   = 0
-        r16_pts   = 0
-        qf_pts    = 0
-        sf_pts    = 0
-        champ_pts = 0
-
-        # --- Group stage + 3rd place ---
+        # ── Group + 3rd place ──
+        grp_pts = 0
         for rnd, col_start, col_end in [("GROUP", 2, 25), ("3RD", 26, 33)]:
             for col in range(col_start, col_end + 1):
                 team = get_cell(row, col)
                 if team and (rnd, team) in advanced_teams:
                     grp_pts += POINTS[rnd]
 
-        # --- Knockout rounds with duplicate protection per round ---
-        knockout_picks = []
-        for rnd, col_start, col_end in [("R32", 34, 49), ("R16", 50, 57), ("QF", 58, 61), ("SF", 62, 63), ("FINAL", 64, 64)]:
+        # ── Knockout rounds with duplicate protection ──
+        round_pts = {"R32": 0, "R16": 0, "QF": 0, "SF": 0, "FINAL": 0}
+        scored_round_teams = set()
+
+        knockout_rounds = [
+            ("R32",   34, 49),
+            ("R16",   50, 57),
+            ("QF",    58, 61),
+            ("SF",    62, 63),
+        ]
+        for rnd, col_start, col_end in knockout_rounds:
             for col in range(col_start, col_end + 1):
                 team = get_cell(row, col)
-                if team:
-                    knockout_picks.append((rnd, team))
+                if not team:
+                    continue
+                key = (rnd, team)
+                if key in scored_round_teams:
+                    continue
+                scored_round_teams.add(key)
+                if key in advanced_teams:
+                    round_pts[rnd] += POINTS[rnd]
 
-        scored_round_teams = set()
-        round_pts = {"R32": 0, "R16": 0, "QF": 0, "SF": 0}
-        for rnd, team in knockout_picks:
-            if (rnd, team) in scored_round_teams:
-                continue
-            scored_round_teams.add((rnd, team))
-            if (rnd, team) in advanced_teams:
-                round_pts[rnd] += POINTS[rnd]
-
-        r32_pts   = round_pts["R32"]
-        r16_pts   = round_pts["R16"]
-        qf_pts    = round_pts["QF"]
-        sf_pts    = round_pts["SF"]
-
-        # --- Champion ---
+        # ── Final / Champion (col 64) ──
+        # The winner of the Final IS the champion.
+        # Award FINAL points if they reached the final, WINNER points if they won it.
+        champ_pts = 0
+        final_pts = 0
         champ = get_cell(row, CHAMPION_COL)
-        if champ and ("WINNER", champ) in advanced_teams:
-            champ_pts += POINTS["WINNER"]
+        if champ:
+            if ("FINAL", champ) in advanced_teams:
+                final_pts = POINTS["FINAL"]
+            if ("WINNER", champ) in advanced_teams:
+                champ_pts = POINTS["WINNER"]
 
-        total = grp_pts + r32_pts + r16_pts + qf_pts + sf_pts + champ_pts
-
-        # Count correct teams per round (not points, actual team count)
-        grp_max  = 32  # 24 group + 8 third place picks
-        r32_max  = 16
-        r16_max  = 8
-        qf_max   = 4
-        sf_max   = 2
-
-        grp_correct  = grp_pts  // POINTS["GROUP"]   # 1pt each
-        r32_correct  = r32_pts  // POINTS["R32"]      # 2pts each
-        r16_correct  = r16_pts  // POINTS["R16"]      # 3pts each
-        qf_correct   = qf_pts   // POINTS["QF"]       # 4pts each
-        sf_correct   = sf_pts   // POINTS["SF"]       # 5pts each
-        champ_correct = 1 if champ_pts > 0 else 0
+        total = grp_pts + sum(round_pts.values()) + final_pts + champ_pts
 
         entries.append({
             "name":          display_name,
             "email":         email,
             "group":         grp_pts,
-            "r32":           r32_pts,
-            "r16":           r16_pts,
-            "qf":            qf_pts,
-            "sf":            sf_pts,
+            "r32":           round_pts["R32"],
+            "r16":           round_pts["R16"],
+            "qf":            round_pts["QF"],
+            "sf":            round_pts["SF"],
+            "final":         final_pts,
             "champion":      champ_pts,
             "total":         total,
-            "grp_correct":   grp_correct,
-            "r32_correct":   r32_correct,
-            "r16_correct":   r16_correct,
-            "qf_correct":    qf_correct,
-            "sf_correct":    sf_correct,
-            "champ_correct": champ_correct,
+            "grp_correct":   grp_pts  // POINTS["GROUP"],
+            "r32_correct":   round_pts["R32"] // POINTS["R32"],
+            "r16_correct":   round_pts["R16"] // POINTS["R16"],
+            "qf_correct":    round_pts["QF"]  // POINTS["QF"],
+            "sf_correct":    round_pts["SF"]  // POINTS["SF"],
+            "final_correct": 1 if final_pts > 0 else 0,
+            "champ_correct": 1 if champ_pts > 0 else 0,
         })
 
-    # Sort by total descending
     entries.sort(key=lambda x: x["total"], reverse=True)
     return entries
 
@@ -277,19 +244,19 @@ def update_sheet(service, entries, picks_visible):
             "R16 Pts",   "R16 Correct",
             "QF Pts",    "QF Correct",
             "SF Pts",    "SF Correct",
-            "Champion",  "Total", "Last Updated"
+            "Final Pts", "Champ Pts",
+            "Total", "Last Updated"
         ]
         rows = [
             [
                 i + 1,
-                e["name"],
-                e["email"],
-                e["group"],         f"{e['grp_correct']}/32",
-                e["r32"],           f"{e['r32_correct']}/16",
-                e["r16"],           f"{e['r16_correct']}/8",
-                e["qf"],            f"{e['qf_correct']}/4",
-                e["sf"],            f"{e['sf_correct']}/2",
-                e["champion"],
+                e["name"], e["email"],
+                e["group"],       f"{e['grp_correct']}/32",
+                e["r32"],         f"{e['r32_correct']}/16",
+                e["r16"],         f"{e['r16_correct']}/8",
+                e["qf"],          f"{e['qf_correct']}/4",
+                e["sf"],          f"{e['sf_correct']}/2",
+                e["final"],       e["champion"],
                 e["total"],
                 now if i == 0 else ""
             ]
@@ -300,9 +267,7 @@ def update_sheet(service, entries, picks_visible):
         header = ["Rank", "Entry Name", "Email", "Total Points", "Note", "Last Updated"]
         rows = [
             [
-                i + 1,
-                e["name"],
-                e["email"],
+                i + 1, e["name"], e["email"],
                 "—",
                 "Picks revealed when tournament starts",
                 now if i == 0 else ""
@@ -316,12 +281,10 @@ def update_sheet(service, entries, picks_visible):
             header
         ] + rows
 
-    # Clear the sheet first
     service.spreadsheets().values().clear(
         spreadsheetId=SPREADSHEET_ID,
         range="Leaderboard!A1:Z1000"
     ).execute()
-
     service.spreadsheets().values().update(
         spreadsheetId=SPREADSHEET_ID,
         range="Leaderboard!A1",
@@ -337,44 +300,27 @@ def update_sheet(service, entries, picks_visible):
 
 
 def apply_top3_colors(service, picks_visible):
-    """Highlight top 3 rows with gold, silver, bronze colors."""
-    if picks_visible:
-        first_entry_row = 1
-    else:
-        first_entry_row = 4
-
+    first_entry_row = 1 if picks_visible else 4
     colors = [
-        {"red": 1.0,  "green": 0.84, "blue": 0.0},   # Gold
-        {"red": 0.75, "green": 0.75, "blue": 0.75},   # Silver
-        {"red": 0.8,  "green": 0.5,  "blue": 0.2},    # Bronze
+        {"red": 1.0,  "green": 0.84, "blue": 0.0},
+        {"red": 0.75, "green": 0.75, "blue": 0.75},
+        {"red": 0.8,  "green": 0.5,  "blue": 0.2},
     ]
-
     requests_body = []
     sheet_id = get_leaderboard_sheet_id(service)
 
-    # Clear all background colors from entry rows
     requests_body.append({
         "repeatCell": {
-            "range": {
-                "sheetId": sheet_id,
-                "startRowIndex": first_entry_row,
-                "endRowIndex": first_entry_row + 100,
-            },
+            "range": {"sheetId": sheet_id, "startRowIndex": first_entry_row, "endRowIndex": first_entry_row + 100},
             "cell": {"userEnteredFormat": {"backgroundColor": {"red": 1, "green": 1, "blue": 1}}},
             "fields": "userEnteredFormat.backgroundColor"
         }
     })
-
-    # Apply gold/silver/bronze to top 3
     for i, color in enumerate(colors):
         row_index = first_entry_row + i
         requests_body.append({
             "repeatCell": {
-                "range": {
-                    "sheetId": sheet_id,
-                    "startRowIndex": row_index,
-                    "endRowIndex": row_index + 1,
-                },
+                "range": {"sheetId": sheet_id, "startRowIndex": row_index, "endRowIndex": row_index + 1},
                 "cell": {"userEnteredFormat": {"backgroundColor": color}},
                 "fields": "userEnteredFormat.backgroundColor"
             }
@@ -388,7 +334,6 @@ def apply_top3_colors(service, picks_visible):
 
 
 def get_leaderboard_sheet_id(service):
-    """Get the sheet ID of the Leaderboard tab."""
     meta = service.spreadsheets().get(spreadsheetId=SPREADSHEET_ID).execute()
     for sheet in meta["sheets"]:
         if sheet["properties"]["title"] == "Leaderboard":
@@ -399,7 +344,6 @@ def get_leaderboard_sheet_id(service):
 def main():
     now_utc = datetime.now(timezone.utc)
     print(f"[→] Running at {now_utc.isoformat()}")
-
     picks_visible = PICKS_VISIBLE or (now_utc >= TOURNAMENT_START)
     print(f"[→] Picks visible: {picks_visible}")
 
@@ -408,8 +352,6 @@ def main():
         scopes=["https://www.googleapis.com/auth/spreadsheets"]
     )
     service = build("sheets", "v4", credentials=creds)
-
-    # Rename Picks sheet headers to short names
     rename_picks_headers(service)
 
     picks_rows = service.spreadsheets().values().get(
@@ -427,12 +369,6 @@ def main():
 
 
 def test_mode():
-    """
-    Test mode — uses fake tournament results based on the real picks in the sheet.
-    Pretends that ALL teams the first entry picked actually advanced.
-
-    Run with:  python update_scores.py test
-    """
     print("=" * 60)
     print("[TEST MODE] Using fake results — no API calls made")
     print("=" * 60)
@@ -442,154 +378,115 @@ def test_mode():
         scopes=["https://www.googleapis.com/auth/spreadsheets"]
     )
     service = build("sheets", "v4", credentials=creds)
-
-    # Rename headers first
     rename_picks_headers(service)
 
     picks_rows = service.spreadsheets().values().get(
         spreadsheetId=os.environ["SPREADSHEET_ID"],
         range="Picks!A1:BP500"
     ).execute().get("values", [])
-    print(f"[→] {len(picks_rows) - 1} entries loaded from sheet")
+    print(f"[→] {len(picks_rows) - 1} entries loaded")
 
     if len(picks_rows) < 2:
-        print("[!] No entries found in sheet — add a test entry via the form first!")
+        print("[!] No entries found — add a test entry via the form first!")
         return
 
-    # Build fake advanced_teams from first entry's picks
     first_row = picks_rows[1]
     fake_advanced = set()
-
     for col in range(2, 26):
         team = get_cell(first_row, col)
         if team: fake_advanced.add(("GROUP", team))
-
     for col in range(26, 34):
         team = get_cell(first_row, col)
         if team: fake_advanced.add(("3RD", team))
-
     for col in range(34, 50):
         team = get_cell(first_row, col)
         if team: fake_advanced.add(("R32", team))
-
     for col in range(50, 58):
         team = get_cell(first_row, col)
         if team: fake_advanced.add(("R16", team))
-
     for col in range(58, 62):
         team = get_cell(first_row, col)
         if team: fake_advanced.add(("QF", team))
-
     for col in range(62, 64):
         team = get_cell(first_row, col)
         if team: fake_advanced.add(("SF", team))
-
     champ = get_cell(first_row, CHAMPION_COL)
-    if champ: fake_advanced.add(("WINNER", champ))
+    if champ:
+        fake_advanced.add(("FINAL", champ))
+        fake_advanced.add(("WINNER", champ))
 
     print(f"[→] Fake results: {len(fake_advanced)} teams marked as advanced")
-
     entries = calculate_scores(picks_rows, fake_advanced)
 
-    print("\n[→] Calculated scores:")
-    print(f"  {'Rank':<5} {'Name':<25} {'Grp':>5} {'G✓':>5} {'R32':>5} {'R✓':>5} {'R16':>5} {'L✓':>5} {'QF':>4} {'Q✓':>4} {'SF':>4} {'S✓':>4} {'Champ':>6} {'Total':>6}")
-    print("  " + "-" * 110)
+    print(f"\n  {'Rank':<5} {'Name':<25} {'Grp':>5} {'R32':>5} {'R16':>5} {'QF':>4} {'SF':>4} {'Fin':>4} {'Chp':>4} {'Tot':>6}")
+    print("  " + "-" * 75)
     for i, e in enumerate(entries):
-        print(f"  {i+1:<5} {e['name']:<25} {e['group']:>5} {e['grp_correct']:>5} {e['r32']:>5} {e['r32_correct']:>5} {e['r16']:>5} {e['r16_correct']:>5} {e['qf']:>4} {e['qf_correct']:>4} {e['sf']:>4} {e['sf_correct']:>4} {e['champion']:>6} {e['total']:>6}")
+        print(f"  {i+1:<5} {e['name']:<25} {e['group']:>5} {e['r32']:>5} {e['r16']:>5} {e['qf']:>4} {e['sf']:>4} {e['final']:>4} {e['champion']:>4} {e['total']:>6}")
 
     print("\n[→] Writing test results to Leaderboard tab...")
     update_sheet(service, entries, picks_visible=True)
-    print("[✓] Test complete! Check the Leaderboard tab in your spreadsheet.")
-    print("    The first entry should have a PERFECT score since we used their picks as results.")
+    print("[✓] Test complete! First entry should have a perfect score.")
 
 
 def custom_test_mode():
-    """
-    Custom test mode — manually define which teams advanced in each round.
-    Edit the FAKE_RESULTS dict below to simulate any tournament scenario.
-
-    Run with:  python update_scores.py custom
-    """
     print("=" * 60)
     print("[CUSTOM TEST MODE] Using manually defined fake results")
     print("=" * 60)
 
-    # ── EDIT THIS SECTION TO SET YOUR FAKE RESULTS ────────────────
-    # Add teams that you want to pretend advanced in each round.
-    # Use exact team names as they appear in the picks form.
-
     FAKE_RESULTS = {
-        # Group stage — teams that finished 1st or 2nd in their group
         "GROUP": [
-            "Mexico", "South Korea",          # Group A
-            "Canada", "Switzerland",           # Group B
-            "Brazil", "Morocco",               # Group C
-            "USA", "Paraguay",                 # Group D
-            "Germany", "Ecuador",              # Group E
-            "Netherlands", "Japan",            # Group F
-            "Belgium", "Egypt",                # Group G
-            "Spain", "Uruguay",                # Group H
-            "France", "Senegal",               # Group I
-            "Argentina", "Austria",            # Group J
-            "Portugal", "Colombia",            # Group K
-            "England", "Croatia",              # Group L
+            "Mexico", "South Korea",
+            "Canada", "Switzerland",
+            "Brazil", "Morocco",
+            "USA", "Paraguay",
+            "Germany", "Ecuador",
+            "Netherlands", "Japan",
+            "Belgium", "Egypt",
+            "Spain", "Uruguay",
+            "France", "Senegal",
+            "Argentina", "Austria",
+            "Portugal", "Colombia",
+            "England", "Croatia",
         ],
-        # Best 3rd place teams (8 teams)
         "3RD": [
             "Ivory Coast", "Sweden", "Iran", "Norway",
             "Algeria", "DR Congo", "Ghana", "Saudi Arabia",
         ],
-        # Round of 32 winners (16 teams)
         "R32": [
             "Switzerland", "Brazil", "Germany", "Netherlands",
             "France", "USA", "Belgium", "Spain",
             "Paraguay", "Egypt", "Colombia", "Portugal",
             "Canada", "Argentina", "England", "Morocco",
         ],
-        # Round of 16 winners (8 teams)
         "R16": [
             "Brazil", "Netherlands", "France", "Spain",
             "Argentina", "Portugal", "England", "Germany",
         ],
-        # Quarter-final winners (4 teams)
-        "QF": [
-            "Brazil", "France", "Argentina", "England",
-        ],
-        # Semi-final winners (2 teams)
-        "SF": [
-            "Brazil", "Argentina",
-        ],
-        # Final winner (1 team) — also the champion
-        "FINAL":  ["Brazil"],
+        "QF":     ["Brazil", "France", "Argentina", "England"],
+        "SF":     ["Brazil", "Argentina"],
+        "FINAL":  ["Brazil", "Argentina"],  # both finalists
         "WINNER": ["Brazil"],
     }
-    # ── END OF FAKE RESULTS ───────────────────────────────────────
 
-    # Build advanced_teams set from fake results
     fake_advanced = set()
     for rnd, teams in FAKE_RESULTS.items():
         for team in teams:
             fake_advanced.add((rnd, team))
 
-    print(f"[->] Fake results defined: {len(fake_advanced)} advancement records")
-    for rnd in ["GROUP","3RD","R32","R16","QF","SF","FINAL","WINNER"]:
-        teams = [t for r,t in fake_advanced if r==rnd]
-        if teams:
-            print(f"    {rnd:<8}: {', '.join(teams)}")
+    print(f"[→] Fake results: {len(fake_advanced)} advancement records")
 
     creds = Credentials.from_service_account_info(
         json.loads(os.environ["GOOGLE_CREDS_JSON"]),
         scopes=["https://www.googleapis.com/auth/spreadsheets"]
     )
     service = build("sheets", "v4", credentials=creds)
-
     rename_picks_headers(service)
 
     picks_rows = service.spreadsheets().values().get(
         spreadsheetId=os.environ["SPREADSHEET_ID"],
         range="Picks!A1:BP500"
     ).execute().get("values", [])
-    print(f"\n[->] {len(picks_rows) - 1} entries loaded from sheet")
+    print(f"[→] {len(picks_rows) - 1} entries loaded")
 
     if len(picks_rows) < 2:
         print("[!] No entries found — submit some picks first!")
@@ -597,13 +494,12 @@ def custom_test_mode():
 
     entries = calculate_scores(picks_rows, fake_advanced)
 
-    print("\n[->] Calculated scores:")
-    print(f"  {'Rank':<5} {'Name':<25} {'Grp':>5} {'G✓':>5} {'R32':>5} {'R✓':>5} {'R16':>5} {'L✓':>5} {'QF':>4} {'Q✓':>4} {'SF':>4} {'S✓':>4} {'Champ':>6} {'Total':>6}")
-    print("  " + "-" * 110)
+    print(f"\n  {'Rank':<5} {'Name':<25} {'Grp':>5} {'R32':>5} {'R16':>5} {'QF':>4} {'SF':>4} {'Fin':>4} {'Chp':>4} {'Tot':>6}")
+    print("  " + "-" * 75)
     for i, e in enumerate(entries):
-        print(f"  {i+1:<5} {e['name']:<25} {e['group']:>5} {e['grp_correct']:>5} {e['r32']:>5} {e['r32_correct']:>5} {e['r16']:>5} {e['r16_correct']:>5} {e['qf']:>4} {e['qf_correct']:>4} {e['sf']:>4} {e['sf_correct']:>4} {e['champion']:>6} {e['total']:>6}")
+        print(f"  {i+1:<5} {e['name']:<25} {e['group']:>5} {e['r32']:>5} {e['r16']:>5} {e['qf']:>4} {e['sf']:>4} {e['final']:>4} {e['champion']:>4} {e['total']:>6}")
 
-    print("\n[->] Writing results to Leaderboard tab...")
+    print("\n[→] Writing results to Leaderboard tab...")
     update_sheet(service, entries, picks_visible=True)
     print("[✓] Done! Check the Leaderboard tab.")
 
