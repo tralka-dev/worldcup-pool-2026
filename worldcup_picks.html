@@ -789,6 +789,11 @@ function renderBracketKO() {
     rightSF = matchBox(t1, t2, picks.sf[1]);
   }
 
+  // Final: SF[0] winner vs SF[1] winner
+  const finalist1 = picks.sf[0] || 'TBD';
+  const finalist2 = picks.sf[1] || 'TBD';
+  const finalMatch = matchBox(finalist1, finalist2, picks.champion);
+
   const champ = picks.champion || '';
 
   const h = `
@@ -797,6 +802,7 @@ function renderBracketKO() {
       ${col('R16', leftR16)}
       ${col('QF', leftQF)}
       ${col('SF', leftSF)}
+      ${col('Final', finalMatch)}
     </div>
     <div class="bko-col center">
       <div class="bko-champ-box">
