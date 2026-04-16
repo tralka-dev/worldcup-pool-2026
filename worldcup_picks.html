@@ -713,84 +713,60 @@ function renderBracketGroups() {
 }
 
 function renderBracketKO() {
-  // Helper to build a match box
-  function matchBox(t1, t2, winner) {
+  function mb(t1, t2, w) {
     const s1 = t1 !== 'TBD' ? t1 : '';
     const s2 = t2 !== 'TBD' ? t2 : '';
     return `<div class="bko-match">
-      <div class="bko-team ${s1?'':'empty'} ${winner&&winner===s1?'winner':''}">${s1||'—'}</div>
-      <div class="bko-team ${s2?'':'empty'} ${winner&&winner===s2?'winner':''}">${s2||'—'}</div>
+      <div class="bko-team ${s1?'':'empty'} ${w&&w===s1?'winner':''}">${s1||'—'}</div>
+      <div class="bko-team ${s2?'':'empty'} ${w&&w===s2?'winner':''}">${s2||'—'}</div>
     </div>`;
   }
-
-  function col(label, matchesHtml) {
-    return `<div class="bko-col">
+  function col(label, html, extra) {
+    return `<div class="bko-col${extra?' '+extra:''}">
       <div class="bko-col-wrap">
         <div class="bko-lbl">${label}</div>
-        <div class="bko-matches">${matchesHtml}</div>
+        <div class="bko-matches">${html}</div>
       </div>
     </div>`;
   }
+  function r32m(i)  { const [a,b]=getR32Teams(i); return mb(a,b,picks.r32[i]); }
+  function r16m(i)  { const [a,b]=getR16Teams(i); return mb(a,b,picks.r16[i]); }
+  function qfm(i)   { const [a,b]=getQFTeams(i);  return mb(a,b,picks.qf[i]);  }
+  function sfm(i)   { const [a,b]=getSFTeams(i);  return mb(a,b,picks.sf[i]);  }
 
-  // LEFT HALF:  R32[0-7] → R16[0-3] → QF[0,2] → SF[0]
-  // RIGHT HALF: R32[8-15] → R16[4-7] → QF[1,3] → SF[1]
-  // QF[0] uses R16[0,1] (left)   QF[2] uses R16[2,3] (left)
-  // QF[1] uses R16[4,5] (right)  QF[3] uses R16[6,7] (right)
-  // SF[0] = winner(QF[0]) vs winner(QF[1])  ← cross: left QF[0] vs right QF[1]
-  // SF[1] = winner(QF[2]) vs winner(QF[3])  ← cross: left QF[2] vs right QF[3]
-  let leftR32 = '', leftR16 = '', leftQF = '', leftSF = '';
-  for (let i = 0; i < 8; i++) {
-    const [t1,t2] = getR32Teams(i);
-    leftR32 += matchBox(t1, t2, picks.r32[i]);
-  }
-  for (let i = 0; i < 4; i++) {
-    const [t1,t2] = getR16Teams(i);
-    leftR16 += matchBox(t1, t2, picks.r16[i]);
-  }
-  // Left QF: QF[0] (uses R16[0,1]) and QF[2] (uses R16[2,3])
-  for (let i of [0, 2]) {
-    const [t1,t2] = getQFTeams(i);
-    leftQF += matchBox(t1, t2, picks.qf[i]);
-  }
-  {
-    const [t1,t2] = getSFTeams(0);
-    leftSF = matchBox(t1, t2, picks.sf[0]);
-  }
+  // ── Path layout (FIFA official) ──────────────────────────────────
+  // LEFT SIDE (→ SF[0] → Final)
+  //   Path A: R32[M74,M77,M73,M75] → R16[M89,M90] → QF[M97]  (top 4)
+  //   Path B: R32[M83,M84,M81,M82] → R16[M93,M94] → QF[M98]  (bot 4)
+  //   R32 idx: M74=1,M77=4,M73=0,M75=2 | M83=10,M84=11,M81=8,M82=9
+  //   R16 idx: M89=0,M90=1             | M93=4,M94=5
+  //   QF  idx: M97=0                   | M98=1
+  // RIGHT SIDE (→ SF[1]) — mirrored
+  //   Path C: R32[M76,M78,M79,M80] → R16[M91,M92] → QF[M99]  (top 4)
+  //   Path D: R32[M86,M88,M85,M87] → R16[M95,M96] → QF[M100] (bot 4)
+  //   R32 idx: M76=3,M78=5,M79=6,M80=7 | M86=13,M88=15,M85=12,M87=14
+  //   R16 idx: M91=2,M92=3             | M95=6,M96=7
+  //   QF  idx: M99=2                   | M100=3
 
-  // RIGHT HALF: R32[8-15] → R16[4-7] → QF[1,3] → SF[1]
-  let rightR32 = '', rightR16 = '', rightQF = '', rightSF = '';
-  for (let i = 8; i < 16; i++) {
-    const [t1,t2] = getR32Teams(i);
-    rightR32 += matchBox(t1, t2, picks.r32[i]);
-  }
-  for (let i = 4; i < 8; i++) {
-    const [t1,t2] = getR16Teams(i);
-    rightR16 += matchBox(t1, t2, picks.r16[i]);
-  }
-  // Right QF: QF[1] (uses R16[4,5]) and QF[3] (uses R16[6,7])
-  for (let i of [1, 3]) {
-    const [t1,t2] = getQFTeams(i);
-    rightQF += matchBox(t1, t2, picks.qf[i]);
-  }
-  {
-    const [t1,t2] = getSFTeams(1);
-    rightSF = matchBox(t1, t2, picks.sf[1]);
-  }
-
-  // Final: SF[0] winner vs SF[1] winner
-  const finalist1 = picks.sf[0] || 'TBD';
-  const finalist2 = picks.sf[1] || 'TBD';
-  const finalMatch = matchBox(finalist1, finalist2, picks.final[0]);
+  const lR32 = [1,4,0,2,10,11,8,9].map(r32m).join('');
+  const lR16 = [0,1,4,5].map(r16m).join('');
+  const lQF  = [0,1].map(qfm).join('');
+  const lSF  = sfm(0);
+  const fin  = mb(picks.sf[0]||'TBD', picks.sf[1]||'TBD', picks.final[0]);
+  const rSF  = sfm(1);
+  const rQF  = [2,3].map(qfm).join('');
+  const rR16 = [2,3,6,7].map(r16m).join('');
+  const rR32 = [3,5,6,7,13,15,12,14].map(r32m).join('');
 
   const champ = picks.final[0] || '';
 
   const h = `
     <div class="bko-half left">
-      ${col('R32', leftR32)}
-      ${col('R16', leftR16)}
-      ${col('QF', leftQF)}
-      ${col('SF', leftSF)}
-      ${col('Final', finalMatch)}
+      ${col('R32', lR32)}
+      ${col('R16', lR16)}
+      ${col('QF',  lQF)}
+      ${col('SF',  lSF)}
+      ${col('Final', fin)}
     </div>
     <div class="bko-col center">
       <div class="bko-champ-box">
@@ -800,10 +776,10 @@ function renderBracketKO() {
       </div>
     </div>
     <div class="bko-half right">
-      ${col('R32', rightR32)}
-      ${col('R16', rightR16)}
-      ${col('QF', rightQF)}
-      ${col('SF', rightSF)}
+      ${col('R32', rR32)}
+      ${col('R16', rR16)}
+      ${col('QF',  rQF)}
+      ${col('SF',  rSF)}
     </div>`;
 
   document.getElementById('bracketKO').innerHTML = h;
@@ -958,15 +934,20 @@ function saveBracketPDF() {
   function qfm(i) { const [a,b]=getQFTeams(i);  return [a!=='TBD'?a:'',b!=='TBD'?b:'',picks.qf[i]]; }
   function sfm(i) { const [a,b]=getSFTeams(i);  return [a!=='TBD'?a:'',b!=='TBD'?b:'',picks.sf[i]]; }
 
-  var lR32 = [0,1,2,3,4,5,6,7].map(r32m);
-  var lR16 = [0,1,2,3].map(r16m);
-  var lQF  = [0,2].map(qfm);
+  // Correct FIFA paths:
+  // Left:  Path A R32[M74,M77,M73,M75]=idx[1,4,0,2] + Path B R32[M83,M84,M81,M82]=idx[10,11,8,9]
+  //        R16[M89,M90]=idx[0,1] + R16[M93,M94]=idx[4,5] → QF[M97,M98]=idx[0,1] → SF[0]
+  // Right: Path C R32[M76,M78,M79,M80]=idx[3,5,6,7] + Path D R32[M86,M88,M85,M87]=idx[13,15,12,14]
+  //        R16[M91,M92]=idx[2,3] + R16[M95,M96]=idx[6,7] → QF[M99,M100]=idx[2,3] → SF[1]
+  var lR32 = [1,4,0,2,10,11,8,9].map(r32m);
+  var lR16 = [0,1,4,5].map(r16m);
+  var lQF  = [0,1].map(qfm);
   var lSF  = [sfm(0)];
   var fin  = [[picks.sf[0]||'',picks.sf[1]||'',picks.final[0]]];
   var rSF  = [sfm(1)];
-  var rQF  = [1,3].map(qfm);
-  var rR16 = [4,5,6,7].map(r16m);
-  var rR32 = [8,9,10,11,12,13,14,15].map(r32m);
+  var rQF  = [2,3].map(qfm);
+  var rR16 = [2,3,6,7].map(r16m);
+  var rR32 = [3,5,6,7,13,15,12,14].map(r32m);
 
   drawCol(0,'R32',lR32,false);
   drawCol(1,'R16',lR16,false);
