@@ -84,6 +84,9 @@ header p{font-size:14px;color:#666}
 .btn-submit{padding:14px 40px;font-size:16px;font-weight:600;background:#1a73e8;color:white;border:none;border-radius:10px;cursor:pointer;transition:background .15s}
 .btn-submit:hover{background:#1558b0}
 .btn-submit:disabled{background:#ccc;cursor:not-allowed}
+.btn-save-pdf{padding:10px 24px;font-size:14px;font-weight:500;background:white;color:#1a73e8;border:1.5px solid #1a73e8;border-radius:10px;cursor:pointer;transition:all .15s;margin-top:10px}
+.btn-save-pdf:hover{background:#E8F0FE}
+.btn-save-pdf:disabled{opacity:.4;cursor:not-allowed}
 .submit-note{font-size:12px;color:#888;margin-top:8px}
 .progress-summary{background:#f8f8f8;border:1px solid #e0e0e0;border-radius:10px;padding:14px 18px;margin-bottom:20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px}
 .prog-item{text-align:center}
@@ -104,6 +107,23 @@ header p{font-size:14px;color:#666}
 .toast.show{opacity:1}
 .toast.success{background:#1e7e34}
 .toast.error{background:#c62828}
+
+/* ── Live bracket ── */
+.bracket-section{margin-top:2rem;padding-top:1.5rem;border-top:1px solid #e0e0e0}
+.bracket-section h3{font-size:14px;font-weight:600;color:#444;text-transform:uppercase;letter-spacing:.05em;margin-bottom:1rem}
+.bracket-groups-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:6px;margin-bottom:1.5rem}
+.bgrp{background:white;border:1px solid #e0e0e0;border-radius:8px;padding:6px 8px;text-align:center}
+.bgrp-lbl{font-size:10px;font-weight:600;color:#888;text-transform:uppercase;margin-bottom:4px}
+.bgrp-team{font-size:11px;font-weight:500;color:#0F6E56;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bgrp-team.empty{color:#ccc;font-weight:400}
+.bracket-ko{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;overflow-x:auto}
+.bko-col{display:flex;flex-direction:column;gap:4px;min-width:80px}
+.bko-lbl{font-size:10px;font-weight:600;color:#888;text-align:center;text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px;padding-bottom:4px;border-bottom:1px solid #e0e0e0}
+.bko-match{background:white;border:1px solid #e0e0e0;border-radius:6px;overflow:hidden}
+.bko-team{padding:4px 8px;font-size:11px;font-weight:500;color:#0F6E56;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-bottom:1px solid #f0f0f0}
+.bko-team:last-child{border-bottom:none}
+.bko-team.empty{color:#ccc;font-weight:400}
+.bko-team.champ{background:#FEF3C7;color:#92400E}
 </style>
 </head>
 <body>
@@ -131,7 +151,7 @@ header p{font-size:14px;color:#666}
     <div class="field-row">
       <div class="field">
         <label>Your Name *</label>
-        <input type="text" id="entryName" placeholder="Your full name">
+        <input type="text" id="entryName" placeholder="Your full name" oninput="updateSavePdfBtn()">
       </div>
       <div class="field">
         <label>Email *</label>
@@ -164,10 +184,24 @@ header p{font-size:14px;color:#666}
     <div id="panel-champion" class="panel"></div>
   </div>
 
+
+  <!-- Live bracket preview -->
+  <div class="bracket-section" id="liveBracket">
+    <h3>Your bracket — live preview</h3>
+    <div id="bracketGroupsGrid" class="bracket-groups-grid"></div>
+    <div id="bracketKO" class="bracket-ko"></div>
+  </div>
+
   <!-- Submit -->
   <div class="submit-section">
     <button class="btn-submit" id="submitBtn" onclick="submitEntry()">Submit My Picks</button>
     <div class="submit-note" id="submitNote">Fill in all rounds before submitting</div>
+    <div style="margin-top:12px">
+      <button class="btn-save-pdf" id="savePdfBtn" onclick="saveBracketPDF()" disabled>
+        &#8595; Download My Bracket as PDF
+      </button>
+      <div style="font-size:12px;color:#888;margin-top:4px" id="pdfNote">Complete all rounds to download your bracket</div>
+    </div>
   </div>
 </div>
 
@@ -534,6 +568,8 @@ function advanceWinners(round) {
   rerenderCurrent();
   updateProgress();
   updateTabs();
+  renderBracket();
+  updateSavePdfBtn();
 }
 
 function editRound(round) {
@@ -687,10 +723,219 @@ function showTab(t, e) {
   RENDERERS[t]?.();
 }
 
+
+// ── Live bracket ─────────────────────────────────────────────────────────────
+function renderBracket() {
+  renderBracketGroups();
+  renderBracketKO();
+}
+
+function renderBracketGroups() {
+  const groups = 'ABCDEFGHIJKL'.split('');
+  let h = '';
+  groups.forEach(g => {
+    const first  = picks.groups[g]?.first  || '';
+    const second = picks.groups[g]?.second || '';
+    h += `<div class="bgrp">
+      <div class="bgrp-lbl">Grp ${g}</div>
+      <div class="bgrp-team ${first?'':'empty'}">${first||'—'}</div>
+      <div class="bgrp-team ${second?'':'empty'}">${second||'—'}</div>
+    </div>`;
+  });
+  document.getElementById('bracketGroupsGrid').innerHTML = h;
+}
+
+function renderBracketKO() {
+  const rounds = [
+    { lbl:'Round of 32', teams: picks.r32,  total:16 },
+    { lbl:'Round of 16', teams: picks.r16,  total:8  },
+    { lbl:'QF',          teams: picks.qf,   total:4  },
+    { lbl:'SF',          teams: picks.sf,   total:2  },
+    { lbl:'Champion',    teams: picks.champion ? [picks.champion] : [], total:1, isChamp:true },
+  ];
+
+  let h = '';
+  rounds.forEach(rnd => {
+    h += `<div class="bko-col"><div class="bko-lbl">${rnd.lbl}</div>`;
+    if (rnd.isChamp) {
+      const champ = picks.champion || '';
+      h += `<div class="bko-match"><div class="bko-team champ ${champ?'':'empty'}">${champ||'—'}</div></div>`;
+    } else {
+      // Pair teams into matches
+      const teams = rnd.teams || [];
+      for (let i = 0; i < rnd.total; i += 2) {
+        const t1 = teams[i]   || '';
+        const t2 = teams[i+1] || '';
+        h += `<div class="bko-match">
+          <div class="bko-team ${t1?'':'empty'}">${t1||'—'}</div>
+          <div class="bko-team ${t2?'':'empty'}">${t2||'—'}</div>
+        </div>`;
+      }
+    }
+    h += '</div>';
+  });
+  document.getElementById('bracketKO').innerHTML = h;
+}
+
+
+// ── PDF Export ────────────────────────────────────────────────────────────────
+function updateSavePdfBtn() {
+  const name = document.getElementById('entryName')?.value?.trim() || '';
+  const allDone = document.getElementById('submitBtn') && !document.getElementById('submitBtn').disabled;
+  const btn = document.getElementById('savePdfBtn');
+  const note = document.getElementById('pdfNote');
+  if (!btn) return;
+  if (allDone && name) {
+    btn.disabled = false;
+    if (note) note.textContent = 'Download a PDF copy of your bracket to keep';
+  } else if (allDone && !name) {
+    btn.disabled = true;
+    if (note) note.textContent = 'Enter your name above to enable PDF download';
+  } else {
+    btn.disabled = true;
+    if (note) note.textContent = 'Complete all rounds to download your bracket';
+  }
+}
+
+function saveBracketPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const name = document.getElementById('entryName')?.value?.trim() || 'My Bracket';
+  const email = document.getElementById('entryEmail')?.value?.trim() || '';
+  const now = new Date().toLocaleDateString('en-US', {year:'numeric',month:'long',day:'numeric'});
+
+  const W = 297; const H = 210;
+  const margin = 10;
+  const GREEN  = [15, 110, 86];
+  const LGREEN = [225, 245, 235];
+  const BLUE   = [26, 115, 232];
+  const GOLD   = [245, 158, 11];
+  const LGOLD  = [254, 243, 199];
+  const GRAY   = [100, 100, 100];
+  const LGRAY  = [245, 245, 245];
+  const BORDER = [220, 220, 220];
+
+  // Header
+  doc.setFillColor(...BLUE);
+  doc.rect(0, 0, W, 18, 'F');
+  doc.setTextColor(255,255,255);
+  doc.setFontSize(14); doc.setFont(undefined,'bold');
+  doc.text('FIFA World Cup 2026 — My Picks', margin, 12);
+  doc.setFontSize(9); doc.setFont(undefined,'normal');
+  doc.text(`${name}${email?' · '+email:''}  ·  ${now}`, W - margin, 12, {align:'right'});
+
+  let y = 24;
+
+  // ── Groups section ──
+  doc.setTextColor(...GRAY);
+  doc.setFontSize(8); doc.setFont(undefined,'bold');
+  doc.text('GROUP STAGE QUALIFIERS', margin, y);
+  y += 4;
+
+  const grpCols = 12; const grpW = (W - 2*margin) / grpCols; const grpH = 10;
+  'ABCDEFGHIJKL'.split('').forEach((g, gi) => {
+    const x = margin + gi * grpW;
+    const first  = picks.groups[g]?.first  || '';
+    const second = picks.groups[g]?.second || '';
+    doc.setFillColor(...LGRAY);
+    doc.rect(x, y, grpW-1, grpH, 'F');
+    doc.setDrawColor(...BORDER); doc.rect(x, y, grpW-1, grpH);
+    doc.setFontSize(7); doc.setFont(undefined,'bold'); doc.setTextColor(...GRAY);
+    doc.text(`Grp ${g}`, x + (grpW-1)/2, y + 2.5, {align:'center'});
+    doc.setFont(undefined,'normal');
+    doc.setTextColor(first ? ...GREEN : ...BORDER);
+    doc.setFontSize(6);
+    doc.text(first  || '—', x + (grpW-1)/2, y + 5.5, {align:'center', maxWidth: grpW-2});
+    doc.setTextColor(second? ...GREEN : ...BORDER);
+    doc.text(second || '—', x + (grpW-1)/2, y + 8.5, {align:'center', maxWidth: grpW-2});
+  });
+  y += grpH + 4;
+
+  // ── Best 3rd ──
+  doc.setTextColor(...GRAY); doc.setFontSize(8); doc.setFont(undefined,'bold');
+  doc.text('BEST 3RD PLACE', margin, y); y += 4;
+  const t3W = (W - 2*margin) / 8;
+  picks.thirds.forEach((t, i) => {
+    const x = margin + i * t3W;
+    doc.setFillColor(...LGRAY);
+    doc.rect(x, y, t3W-1, 7, 'F');
+    doc.setDrawColor(...BORDER); doc.rect(x, y, t3W-1, 7);
+    doc.setFontSize(6); doc.setFont(undefined,'normal');
+    doc.setTextColor(t ? ...GREEN : ...BORDER);
+    doc.text(t||'—', x+(t3W-1)/2, y+4.5, {align:'center', maxWidth:t3W-2});
+  });
+  y += 7 + 6;
+
+  // ── Knockout rounds ──
+  doc.setTextColor(...GRAY); doc.setFontSize(8); doc.setFont(undefined,'bold');
+  doc.text('KNOCKOUT BRACKET', margin, y); y += 4;
+
+  const rounds = [
+    {lbl:'Round of 32', teams:picks.r32||[], slots:16, pairs:8},
+    {lbl:'Round of 16', teams:picks.r16||[], slots:8,  pairs:4},
+    {lbl:'QF',          teams:picks.qf ||[], slots:4,  pairs:2},
+    {lbl:'SF',          teams:picks.sf ||[], slots:2,  pairs:1},
+    {lbl:'Final / Champion', teams: picks.champion?[picks.champion]:[], slots:1, pairs:1, isChamp:true},
+  ];
+
+  const koH = H - y - margin;
+  const colW = (W - 2*margin) / 5;
+  const matchH = 9;
+
+  rounds.forEach((rnd, ri) => {
+    const cx = margin + ri * colW;
+    doc.setFontSize(7); doc.setFont(undefined,'bold'); doc.setTextColor(...GRAY);
+    doc.text(rnd.lbl, cx + colW/2, y, {align:'center'});
+    doc.setDrawColor(...BORDER);
+    doc.line(cx, y+1.5, cx+colW-2, y+1.5);
+
+    const numMatches = rnd.isChamp ? 1 : rnd.pairs;
+    const totalH = numMatches * (matchH + 3);
+    const startY = y + 4 + (koH - totalH) / 2;
+
+    if (rnd.isChamp) {
+      const champ = picks.champion || '';
+      doc.setFillColor(...LGOLD);
+      doc.rect(cx, startY, colW-2, matchH+2, 'F');
+      doc.setDrawColor(...GOLD); doc.setLineWidth(0.5);
+      doc.rect(cx, startY, colW-2, matchH+2);
+      doc.setLineWidth(0.2);
+      doc.setFontSize(8); doc.setFont(undefined,'bold');
+      doc.setTextColor(...(champ ? [146,64,14] : BORDER));
+      doc.text(champ||'—', cx+(colW-2)/2, startY+(matchH+2)/2+1, {align:'center', maxWidth:colW-4});
+    } else {
+      for (let pi=0; pi<numMatches; pi++) {
+        const t1 = rnd.teams[pi*2]   || '';
+        const t2 = rnd.teams[pi*2+1] || '';
+        const my = startY + pi*(matchH+3);
+        doc.setFillColor(...LGRAY);
+        doc.rect(cx, my, colW-2, matchH, 'F');
+        doc.setDrawColor(...BORDER); doc.setLineWidth(0.2);
+        doc.rect(cx, my, colW-2, matchH);
+        doc.line(cx, my+matchH/2, cx+colW-2, my+matchH/2);
+        doc.setFontSize(6.5); doc.setFont(undefined, t1?'bold':'normal');
+        doc.setTextColor(...(t1?GREEN:BORDER));
+        doc.text(t1||'—', cx+2, my+matchH/4+1.5, {maxWidth:colW-4});
+        doc.setFont(undefined, t2?'bold':'normal');
+        doc.setTextColor(...(t2?GREEN:BORDER));
+        doc.text(t2||'—', cx+2, my+matchH*3/4+1.5, {maxWidth:colW-4});
+      }
+    }
+  });
+
+  // Footer
+  doc.setTextColor(...GRAY); doc.setFontSize(7); doc.setFont(undefined,'normal');
+  doc.text('World Cup Pool 2026  ·  tralka-dev.github.io/worldcup-pool-2026/worldcup_picks.html', W/2, H-3, {align:'center'});
+
+  doc.save(`WorldCupPool2026_${name.replace(/\s+/g,'_')}.pdf`);
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 checkDeadline();
 renderGroups();
 updateProgress();
+renderBracket();
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </body>
 </html>
