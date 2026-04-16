@@ -180,6 +180,7 @@ header p{font-size:14px;color:#666}
     <button class="tab tab-locked" id="tab-r16"    onclick="showTab('r16',event)">Round of 16</button>
     <button class="tab tab-locked" id="tab-qf"     onclick="showTab('qf',event)">Quarter-finals</button>
     <button class="tab tab-locked" id="tab-sf"     onclick="showTab('sf',event)">Semi-finals</button>
+    <button class="tab tab-locked" id="tab-final"    onclick="showTab('final',event)">Final</button>
     <button class="tab tab-locked" id="tab-champion" onclick="showTab('champion',event)">🏆 Champion</button>
     
   </div>
@@ -190,6 +191,7 @@ header p{font-size:14px;color:#666}
     <div id="panel-r16" class="panel"></div>
     <div id="panel-qf" class="panel"></div>
     <div id="panel-sf" class="panel"></div>
+    <div id="panel-final" class="panel"></div>
     <div id="panel-champion" class="panel"></div>
   </div>
 
@@ -288,11 +290,12 @@ const picks = {
   r16: Array(8).fill(null),
   qf:  Array(4).fill(null),
   sf:  Array(2).fill(null),
+  final: Array(1).fill(null),
   champion: ""
 };
 
 // Locked state per round (after Advance Winners)
-const locked = {r32:false, r16:false, qf:false, sf:false};
+const locked = {r32:false, r16:false, qf:false, sf:false, final:false};
 
 // Init group picks
 "ABCDEFGHIJKL".split("").forEach(g => picks.groups[g] = {first:"", second:""});
@@ -354,6 +357,9 @@ function getSFTeams(idx) {
   return [picks.qf[p[0]] || "TBD", picks.qf[p[1]] || "TBD"];
 }
 function getFinTeams() {
+  return [picks.sf[0] || "TBD", picks.sf[1] || "TBD"];
+}
+function getFinalTeams() {
   return [picks.sf[0] || "TBD", picks.sf[1] || "TBD"];
 }
 
@@ -489,6 +495,7 @@ function renderR32()    { renderKO('r32',  16, R32_MATCHES, getR32Teams, R32_MAT
 function renderR16()    { renderKO('r16',   8, null, getR16Teams, R16_MN, 'panel-r16'); }
 function renderQF()     { renderKO('qf',    4, null, getQFTeams,  QF_MN,  'panel-qf'); }
 function renderSF()     { renderKO('sf',    2, null, getSFTeams,  SF_MN,  'panel-sf'); }
+function renderFinal()  { renderKO('final', 1, [{mn:104,desc:'World Cup Final'}], getFinalTeams, [104], 'panel-final'); }
 
 function renderChampion() {
   const finalists = [picks.sf[0], picks.sf[1]].filter(Boolean);
@@ -565,15 +572,15 @@ function editRound(round) {
 }
 
 function nextRound(r) {
-  return {r32:'r16',r16:'qf',qf:'sf',sf:'champion'}[r];
+  return {r32:'r16',r16:'qf',qf:'sf',sf:'final',final:'champion'}[r];
 }
 
 function clearFromRound(from) {
-  const order = ['r32','r16','qf','sf'];
+  const order = ['r32','r16','qf','sf','final'];
   const idx = order.indexOf(from);
   if (idx === -1) return;
   for (let i = idx; i < order.length; i++) {
-    picks[order[i]].fill(null);
+    if (Array.isArray(picks[order[i]])) picks[order[i]].fill(null);
     locked[order[i]] = false;
   }
   picks.champion = "";
@@ -590,6 +597,7 @@ function updateProgress() {
   const r16 = picks.r16.filter(Boolean).length;
   const qf  = picks.qf.filter(Boolean).length;
   const sf  = picks.sf.filter(Boolean).length;
+  const fin = picks.final.filter(Boolean).length;
   const champ = picks.champion ? 1 : 0;
 
   document.getElementById('progressSummary').innerHTML = [
@@ -599,13 +607,14 @@ function updateProgress() {
     {lbl:'Rd of 16',done:r16,total:8},
     {lbl:'QF',done:qf,total:4},
     {lbl:'SF',done:sf,total:2},
+    {lbl:'Final',done:fin,total:1},
     {lbl:'Champion',done:champ,total:1},
   ].map(x => `<div class="prog-item">
     <div class="count ${x.done===x.total?'done':''}">${x.done}/${x.total}</div>
     <div class="lbl">${x.lbl}</div>
   </div>`).join('');
 
-  const allDone = grp===12&&t3===8&&r32===16&&r16===8&&qf===4&&sf===2&&champ===1;
+  const allDone = grp===12&&t3===8&&r32===16&&r16===8&&qf===4&&sf===2&&fin===1&&champ===1;
   document.getElementById('submitBtn').disabled = !allDone;
   document.getElementById('submitNote').textContent = allDone
     ? 'All picks complete — ready to submit!'
@@ -629,6 +638,7 @@ async function submitEntry() {
     r16:      picks.r16,
     qf:       picks.qf,
     sf:       picks.sf,
+    final:    picks.final,
     champion: picks.champion,
   };
 
@@ -664,7 +674,7 @@ function showToast(msg, type) {
 // ── Tab navigation ─────────────────────────────────────────────────────────
 const RENDERERS = {
   groups: renderGroups, thirds: renderThirds,
-  r32: renderR32, r16: renderR16, qf: renderQF, sf: renderSF,
+  r32: renderR32, r16: renderR16, qf: renderQF, sf: renderSF, final: renderFinal,
   champion: renderChampion
 };
 function rerenderCurrent() {
@@ -672,7 +682,7 @@ function rerenderCurrent() {
   RENDERERS[id]?.();
 }
 // Tab unlock order — each tab unlocks after its prerequisite is done
-const TAB_ORDER = ['groups','thirds','r32','r16','qf','sf','champion'];
+const TAB_ORDER = ['groups','thirds','r32','r16','qf','sf','final','champion'];
 
 function isTabUnlocked(t) {
   if (t === 'groups')   return true;
@@ -681,7 +691,8 @@ function isTabUnlocked(t) {
   if (t === 'r16')      return locked.r32;
   if (t === 'qf')       return locked.r16;
   if (t === 'sf')       return locked.qf;
-  if (t === 'champion') return locked.sf;
+  if (t === 'final')    return locked.sf;
+  if (t === 'champion') return locked.final;
   return false;
 }
 
@@ -792,7 +803,7 @@ function renderBracketKO() {
   // Final: SF[0] winner vs SF[1] winner
   const finalist1 = picks.sf[0] || 'TBD';
   const finalist2 = picks.sf[1] || 'TBD';
-  const finalMatch = matchBox(finalist1, finalist2, picks.champion);
+  const finalMatch = matchBox(finalist1, finalist2, picks.final[0] || picks.champion);
 
   const champ = picks.champion || '';
 
