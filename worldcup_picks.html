@@ -723,34 +723,70 @@ function renderBracketGroups() {
 }
 
 function renderBracketKO() {
-  const rounds = [
-    { lbl:'Round of 32', teams: picks.r32,  total:16 },
-    { lbl:'Round of 16', teams: picks.r16,  total:8  },
-    { lbl:'QF',          teams: picks.qf,   total:4  },
-    { lbl:'SF',          teams: picks.sf,   total:2  },
-    { lbl:'Champion',    teams: picks.champion ? [picks.champion] : [], total:1, isChamp:true },
-  ];
-
   let h = '';
-  rounds.forEach(rnd => {
-    h += `<div class="bko-col"><div class="bko-lbl">${rnd.lbl}</div>`;
-    if (rnd.isChamp) {
-      const champ = picks.champion || '';
-      h += `<div class="bko-match"><div class="bko-team champ ${champ?'':'empty'}">${champ||'—'}</div></div>`;
-    } else {
-      // Pair teams into matches
-      const teams = rnd.teams || [];
-      for (let i = 0; i < rnd.total; i += 2) {
-        const t1 = teams[i]   || '';
-        const t2 = teams[i+1] || '';
-        h += `<div class="bko-match">
-          <div class="bko-team ${t1?'':'empty'}">${t1||'—'}</div>
-          <div class="bko-team ${t2?'':'empty'}">${t2||'—'}</div>
-        </div>`;
-      }
-    }
-    h += '</div>';
-  });
+
+  // Round of 32: always show both teams from the fixed draw
+  h += `<div class="bko-col"><div class="bko-lbl">Round of 32</div>`;
+  for (let i = 0; i < 16; i++) {
+    const [t1, t2] = getR32Teams(i);
+    const s1 = t1 !== 'TBD' ? t1 : '';
+    const s2 = t2 !== 'TBD' ? t2 : '';
+    const winner = picks.r32[i] || '';
+    h += `<div class="bko-match">
+      <div class="bko-team ${s1?'':'empty'} ${winner&&winner===s1?'champ':''}">${s1||'—'}</div>
+      <div class="bko-team ${s2?'':'empty'} ${winner&&winner===s2?'champ':''}">${s2||'—'}</div>
+    </div>`;
+  }
+  h += '</div>';
+
+  // Round of 16
+  h += `<div class="bko-col"><div class="bko-lbl">Round of 16</div>`;
+  for (let i = 0; i < 8; i++) {
+    const [t1, t2] = getR16Teams(i);
+    const s1 = t1 !== 'TBD' ? t1 : '';
+    const s2 = t2 !== 'TBD' ? t2 : '';
+    const winner = picks.r16[i] || '';
+    h += `<div class="bko-match">
+      <div class="bko-team ${s1?'':'empty'} ${winner&&winner===s1?'champ':''}">${s1||'—'}</div>
+      <div class="bko-team ${s2?'':'empty'} ${winner&&winner===s2?'champ':''}">${s2||'—'}</div>
+    </div>`;
+  }
+  h += '</div>';
+
+  // Quarter-finals
+  h += `<div class="bko-col"><div class="bko-lbl">QF</div>`;
+  for (let i = 0; i < 4; i++) {
+    const [t1, t2] = getQFTeams(i);
+    const s1 = t1 !== 'TBD' ? t1 : '';
+    const s2 = t2 !== 'TBD' ? t2 : '';
+    const winner = picks.qf[i] || '';
+    h += `<div class="bko-match">
+      <div class="bko-team ${s1?'':'empty'} ${winner&&winner===s1?'champ':''}">${s1||'—'}</div>
+      <div class="bko-team ${s2?'':'empty'} ${winner&&winner===s2?'champ':''}">${s2||'—'}</div>
+    </div>`;
+  }
+  h += '</div>';
+
+  // Semi-finals
+  h += `<div class="bko-col"><div class="bko-lbl">SF</div>`;
+  for (let i = 0; i < 2; i++) {
+    const [t1, t2] = getSFTeams(i);
+    const s1 = t1 !== 'TBD' ? t1 : '';
+    const s2 = t2 !== 'TBD' ? t2 : '';
+    const winner = picks.sf[i] || '';
+    h += `<div class="bko-match">
+      <div class="bko-team ${s1?'':'empty'} ${winner&&winner===s1?'champ':''}">${s1||'—'}</div>
+      <div class="bko-team ${s2?'':'empty'} ${winner&&winner===s2?'champ':''}">${s2||'—'}</div>
+    </div>`;
+  }
+  h += '</div>';
+
+  // Champion
+  const champ = picks.champion || '';
+  h += `<div class="bko-col"><div class="bko-lbl">Champion</div>
+    <div class="bko-match"><div class="bko-team champ ${champ?'':'empty'}">${champ||'—'}</div></div>
+  </div>`;
+
   document.getElementById('bracketKO').innerHTML = h;
 }
 
