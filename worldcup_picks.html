@@ -443,9 +443,24 @@ function renderThirds() {
     // Sort by group then team name
     eligibleTeams.sort((a, b) => a.group.localeCompare(b.group) || a.team.localeCompare(b.team));
 
+    // Find which groups already have a 3rd place team picked (in any other slot)
+    const groupsAlreadyPicked = new Set();
+    picks.thirds.forEach((t, j) => {
+      if (j !== i && t) {
+        // Find which group this team belongs to
+        "ABCDEFGHIJKL".split("").forEach(g => {
+          if (GROUPS_DEF[g].includes(t)) groupsAlreadyPicked.add(g);
+        });
+      }
+    });
+
     const opts = eligibleTeams.map(({ team: t, group: g }) => {
       const taken = otherPicks.has(t);
-      return `<option value="${t}" ${val===t?'selected':''} ${taken?'disabled':''}>${t} (Grp ${g})${taken?' ✓':''}</option>`;
+      // Disable if another team from the same group is already picked in another slot
+      const groupTaken = groupsAlreadyPicked.has(g) && !otherPicks.has(t) && val !== t;
+      const disabled = taken || groupTaken;
+      const suffix = taken ? ' (picked in another slot)' : groupTaken ? ` (Grp ${g} already picked)` : '';
+      return `<option value="${t}" ${val===t?'selected':''} ${disabled?'disabled':''}>${t} (Grp ${g})${suffix}</option>`;
     }).join('');
 
     const groupLabels = slot.groups.join('/');
