@@ -21,4 +21,4 @@ jobs:
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
           WC2026_ID: ${{ secrets.WC2026_ID }}
           PICKS_VISIBLE: ${{ secrets.PICKS_VISIBLE }}
-        run: python update_scores.py
+        run: python update_scores.py custom
