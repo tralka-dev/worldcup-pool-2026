@@ -72,6 +72,7 @@ header p{font-size:14px;color:#666}
 .third-select{padding:7px 10px;border:1px solid #d0d0d0;border-radius:7px;font-size:13px;color:#1a1a1a;background:white;width:100%}
 .third-select:focus{outline:none;border-color:#1a73e8}
 .third-select.filled{border-color:#34a853;background:#f6fef8}
+.third-select.blocked{border-color:#fca5a5;background:#fef2f2;color:#991b1b}
 .section-label{font-size:12px;font-weight:600;color:#444;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px}
 /* Champion */
 .champion-section{text-align:center;padding:20px}
@@ -397,79 +398,71 @@ function renderGroups() {
 function renderThirds() {
   const allFirsts  = "ABCDEFGHIJKL".split("").map(g => picks.groups[g]?.first).filter(Boolean);
   const allSeconds = "ABCDEFGHIJKL".split("").map(g => picks.groups[g]?.second).filter(Boolean);
-  const allThirds  = picks.thirds.filter(Boolean);
-
-  // Teams picked as 1st or 2nd cannot be 3rd
   const usedAs12 = new Set([...allFirsts, ...allSeconds]);
 
-  // Each 3rd-place slot corresponds to a specific R32 match and eligible groups
-  // Source: official FIFA R32 schedule
   const SLOT_DEFS = [
-    { match: 74, vs: "1st E", groups: ["A","B","C","D","F"] },  // slot 0
-    { match: 77, vs: "1st I", groups: ["C","D","F","G","H"] },  // slot 1
-    { match: 79, vs: "1st A", groups: ["C","E","F","H","I"] },  // slot 2
-    { match: 80, vs: "1st L", groups: ["E","H","I","J","K"] },  // slot 3
-    { match: 81, vs: "1st D", groups: ["B","E","F","I","J"] },  // slot 4
-    { match: 82, vs: "1st G", groups: ["A","E","H","I","J"] },  // slot 5
-    { match: 85, vs: "1st B", groups: ["E","F","G","I","J"] },  // slot 6
-    { match: 87, vs: "1st K", groups: ["D","E","I","J","L"] },  // slot 7
+    { match: 74, vs: "1st E", groups: ["A","B","C","D","F"] },
+    { match: 77, vs: "1st I", groups: ["C","D","F","G","H"] },
+    { match: 79, vs: "1st A", groups: ["C","E","F","H","I"] },
+    { match: 80, vs: "1st L", groups: ["E","H","I","J","K"] },
+    { match: 81, vs: "1st D", groups: ["B","E","F","I","J"] },
+    { match: 82, vs: "1st G", groups: ["A","E","H","I","J"] },
+    { match: 85, vs: "1st B", groups: ["E","F","G","I","J"] },
+    { match: 87, vs: "1st K", groups: ["D","E","I","J","L"] },
   ];
+
+  function teamGroup(team) {
+    for (const g of "ABCDEFGHIJKL".split("")) {
+      if (GROUPS_DEF[g].includes(team)) return g;
+    }
+    return null;
+  }
+
+  // Build group→slot map from current picks
+  const groupUsedBySlot = {};
+  picks.thirds.forEach((t, j) => {
+    if (t) { const g = teamGroup(t); if (g) groupUsedBySlot[g] = j; }
+  });
 
   let h = `<p style="font-size:13px;color:#666;margin-bottom:14px">
     Pick the 8 best third-place teams you think will advance to the Round of 32.
-    Each slot shows which groups can qualify for that match.
+    Only teams from <strong>eligible groups</strong> are shown for each slot.
   </p>
   <div class="thirds-grid">`;
 
   for (let i = 0; i < 8; i++) {
     const val = picks.thirds[i] || "";
     const slot = SLOT_DEFS[i];
-    const otherPicks = new Set(picks.thirds.filter((t, j) => j !== i && t));
 
-    // Only show teams from the eligible groups for this slot
-    // that finished 3rd (not 1st or 2nd)
-    const eligibleTeams = [];
+    // Available: eligible groups not used by other slots
+    const availableTeams = [];
     slot.groups.forEach(g => {
-      const grpTeams = GROUPS_DEF[g] || [];
-      const first  = picks.groups[g]?.first;
-      const second = picks.groups[g]?.second;
-      grpTeams.forEach(t => {
-        if (!usedAs12.has(t)) {
-          eligibleTeams.push({ team: t, group: g, hasFirst: !!first, hasSecond: !!second });
-        }
-      });
-    });
-
-    // Sort by group then team name
-    eligibleTeams.sort((a, b) => a.group.localeCompare(b.group) || a.team.localeCompare(b.team));
-
-    // Find which groups already have a 3rd place team picked (in any other slot)
-    const groupsAlreadyPicked = new Set();
-    picks.thirds.forEach((t, j) => {
-      if (j !== i && t) {
-        // Find which group this team belongs to
-        "ABCDEFGHIJKL".split("").forEach(g => {
-          if (GROUPS_DEF[g].includes(t)) groupsAlreadyPicked.add(g);
+      const usedBy = groupUsedBySlot[g];
+      if (usedBy === undefined || usedBy === i) {
+        GROUPS_DEF[g].forEach(t => {
+          if (!usedAs12.has(t)) availableTeams.push({ team: t, group: g });
         });
       }
     });
+    availableTeams.sort((a, b) => a.group.localeCompare(b.group) || a.team.localeCompare(b.team));
 
-    const opts = eligibleTeams.map(({ team: t, group: g }) => {
-      const taken = otherPicks.has(t);
-      // Disable if another team from the same group is already picked in another slot
-      const groupTaken = groupsAlreadyPicked.has(g) && !otherPicks.has(t) && val !== t;
-      const disabled = taken || groupTaken;
-      const suffix = taken ? ' (picked in another slot)' : groupTaken ? ` (Grp ${g} already picked)` : '';
-      return `<option value="${t}" ${val===t?'selected':''} ${disabled?'disabled':''}>${t} (Grp ${g})${suffix}</option>`;
-    }).join('');
+    // Always keep current selection visible
+    const currentOpt = val && !availableTeams.find(x => x.team === val)
+      ? `<option value="${val}" selected>${val} (Grp ${teamGroup(val)||'?'})</option>`
+      : '';
+
+    const opts = availableTeams.map(({ team: t, group: g }) =>
+      `<option value="${t}" ${val===t?'selected':''}>${t} (Grp ${g})</option>`
+    ).join('');
 
     const groupLabels = slot.groups.join('/');
+
     h += `<div>
-      <div class="pick-label" style="font-size:10px">
-        M${slot.match} · vs ${slot.vs} · from Grp ${groupLabels}
-      </div>
+      <div class="pick-label">3rd Place #${i+1} — M${slot.match} vs ${slot.vs}</div>
+      <div style="font-size:10px;color:#888;margin-bottom:3px">Eligible: <strong>Grp ${groupLabels}</strong></div>
       <select class="third-select ${val?'filled':''}" onchange="setThird(${i},this.value)">
-        <option value="">— Select 3rd place team —</option>${opts}
+        <option value="">— Select —</option>
+        ${currentOpt}${opts}
       </select>
     </div>`;
   }
@@ -544,15 +537,70 @@ function setGroup(g, pos, val) {
 }
 
 function setThird(i, val) {
-  // Clear any other slot that has the same team
   if (val) {
+    // ── Conflict check ──────────────────────────────────────────
+    // Simulate picking this team and check if any other slot
+    // would be left with zero eligible teams
+    const SLOT_DEFS = [
+      { match: 74, groups: ["A","B","C","D","F"] },
+      { match: 77, groups: ["C","D","F","G","H"] },
+      { match: 79, groups: ["C","E","F","H","I"] },
+      { match: 80, groups: ["E","H","I","J","K"] },
+      { match: 81, groups: ["B","E","F","I","J"] },
+      { match: 82, groups: ["A","E","H","I","J"] },
+      { match: 85, groups: ["E","F","G","I","J"] },
+      { match: 87, groups: ["D","E","I","J","L"] },
+    ];
+
+    function teamGroup(team) {
+      for (const g of "ABCDEFGHIJKL".split("")) {
+        if (GROUPS_DEF[g].includes(team)) return g;
+      }
+      return null;
+    }
+
+    // Build simulated picks with this new selection applied
+    const simPicks = [...picks.thirds];
+    simPicks[i] = val;
+
+    // Build group→slot map from simulated picks
+    const simGroupUsed = {};
+    simPicks.forEach((t, j) => {
+      if (t) { const g = teamGroup(t); if (g) simGroupUsed[g] = j; }
+    });
+
+    // Get used 1st/2nd teams
+    const allFirsts  = "ABCDEFGHIJKL".split("").map(g => picks.groups[g]?.first).filter(Boolean);
+    const allSeconds = "ABCDEFGHIJKL".split("").map(g => picks.groups[g]?.second).filter(Boolean);
+    const usedAs12 = new Set([...allFirsts, ...allSeconds]);
+
+    // Check each slot that has no pick yet
+    let blockedSlot = null;
+    SLOT_DEFS.forEach((slot, j) => {
+      if (j === i || simPicks[j]) return; // skip this slot and already-picked slots
+      const hasOptions = slot.groups.some(g => {
+        if (simGroupUsed[g] !== undefined && simGroupUsed[g] !== j) return false;
+        return GROUPS_DEF[g].some(t => !usedAs12.has(t));
+      });
+      if (!hasOptions && blockedSlot === null) blockedSlot = j + 1;
+    });
+
+    if (blockedSlot !== null) {
+      showToast(`⚠ Picking this team would leave slot #${blockedSlot} with no valid options — choose a different team`, 'error');
+      // Reset the select back to previous value
+      if (document.querySelector('.panel.active').id === 'panel-thirds') renderThirds();
+      return;
+    }
+
+    // Clear any other slot that has the same team
     picks.thirds.forEach((t, j) => { if (j !== i && t === val) picks.thirds[j] = ''; });
   }
+
   picks.thirds[i] = val;
   clearFromRound('r32');
   if (document.querySelector('.panel.active').id === 'panel-thirds') renderThirds();
   updateProgress();
-  renderBracket(); // ← FIXED: update live preview on third-place change
+  renderBracket();
 }
 
 function selKO(round, idx, team) {
