@@ -6,10 +6,10 @@
 <title>World Cup Pool 2026 — Submit Your Picks</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;color:#1a1a1a;font-size:15px}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#FFFDF0;color:#1a1a1a;font-size:15px}
 .page{max-width:960px;margin:0 auto;padding:24px 16px 80px}
 header{text-align:center;margin-bottom:32px}
-header h1{font-size:26px;font-weight:600;color:#1a1a1a;margin-bottom:6px}
+header h1{font-size:26px;font-weight:600;color:#005BBB;margin-bottom:6px}
 header p{font-size:14px;color:#666}
 /* Entry info */
 .entry-card{background:white;border-radius:12px;padding:20px 24px;margin-bottom:24px;border:1px solid #e0e0e0}
@@ -18,11 +18,11 @@ header p{font-size:14px;color:#666}
 @media(max-width:600px){.field-row{grid-template-columns:1fr}}
 .field label{display:block;font-size:12px;font-weight:500;color:#666;margin-bottom:4px}
 .field input{width:100%;padding:9px 12px;border:1px solid #d0d0d0;border-radius:8px;font-size:14px;color:#1a1a1a}
-.field input:focus{outline:none;border-color:#1a73e8}
+.field input:focus{outline:none;border-color:#005BBB}
 /* Tabs */
 .tabs{display:flex;border-bottom:1px solid #e0e0e0;margin-bottom:20px;overflow-x:auto;background:white;border-radius:12px 12px 0 0;padding:0 16px}
 .tab{padding:12px 16px;font-size:13px;font-weight:500;cursor:pointer;border:none;background:none;color:#666;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;flex-shrink:0}
-.tab.active{color:#1a73e8;border-bottom-color:#1a73e8}
+.tab.active{color:#005BBB;border-bottom-color:#FFD500}
 .tab.tab-locked{color:#ccc;cursor:not-allowed}
 .tab.tab-locked:hover{color:#ccc}
 .tab-body{background:white;border-radius:0 0 12px 12px;border:1px solid #e0e0e0;border-top:none;padding:20px}
@@ -30,38 +30,38 @@ header p{font-size:14px;color:#666}
 /* Groups */
 .groups-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
 .gcard{border:1px solid #e0e0e0;border-radius:10px;overflow:hidden}
-.gcard-head{padding:7px 12px;background:#f8f8f8;border-bottom:1px solid #e0e0e0;font-size:12px;font-weight:600;color:#444;text-transform:uppercase;letter-spacing:.05em}
+.gcard-head{padding:7px 12px;background:#005BBB;border-bottom:1px solid #003f8a;color:white;font-size:12px;font-weight:600;color:#444;text-transform:uppercase;letter-spacing:.05em}
 .gcard-picks{padding:10px 12px;display:flex;flex-direction:column;gap:8px}
 .pick-label{font-size:11px;font-weight:500;color:#888;margin-bottom:2px}
 .pick-select{width:100%;padding:7px 10px;border:1px solid #d0d0d0;border-radius:7px;font-size:13px;color:#1a1a1a;background:white}
-.pick-select:focus{outline:none;border-color:#1a73e8}
-.pick-select.filled{border-color:#34a853;background:#f6fef8}
+.pick-select:focus{outline:none;border-color:#005BBB}
+.pick-select.filled{border-color:#005BBB;background:#E8F0FB}
 /* Knockout */
 .ko-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
 .kocard{border:1px solid #e0e0e0;border-radius:10px;overflow:hidden}
-.kocard.complete{border-color:#34a853}
+.kocard.complete{border-color:#FFD500}
 .kohead{padding:6px 12px;background:#f8f8f8;border-bottom:1px solid #e0e0e0;font-size:11px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:.05em;display:flex;justify-content:space-between}
-.kohead .sel-lbl{color:#34a853}
+.kohead .sel-lbl{color:#005BBB}
 .koteam{display:flex;align-items:center;gap:8px;padding:9px 12px;border-top:1px solid #e0e0e0;cursor:pointer;transition:background .1s}
 .koteam:hover{background:#f5f5f5}
-.koteam.sel{background:#e8f5e9}
+.koteam.sel{background:#FFFBE6}
 .koteam.locked{cursor:default}
 .koteam.locked:hover{background:transparent}
 .koteam.tbd{cursor:default;opacity:.5}
 .kochk{width:16px;height:16px;border-radius:50%;border:2px solid #ccc;flex-shrink:0;display:flex;align-items:center;justify-content:center}
-.koteam.sel .kochk{background:#34a853;border-color:#34a853}
+.koteam.sel .kochk{background:#005BBB;border-color:#005BBB}
 .kodot{width:6px;height:6px;border-radius:50%;background:white;display:none}
 .koteam.sel .kodot{display:block}
 .kotname{flex:1;font-size:13px;color:#1a1a1a}
-.koteam.sel .kotname{font-weight:500;color:#1e7e34}
+.koteam.sel .kotname{font-weight:500;color:#005BBB}
 .koteam.tbd .kotname{color:#aaa;font-style:italic}
 .kosrc{font-size:10px;color:#aaa}
 /* Advance bar */
 .advance-bar{display:flex;align-items:center;gap:12px;padding:12px 0;margin-bottom:16px;border-bottom:1px solid #e8e8e8;flex-wrap:wrap}
 .btn-advance{padding:9px 20px;font-size:13px;font-weight:500;border-radius:8px;cursor:pointer;border:none;transition:all .15s}
-.btn-advance.ready{background:#1a73e8;color:white}
-.btn-advance.ready:hover{background:#1558b0}
-.btn-advance.locked-btn{background:#e8f5e9;color:#34a853;border:1px solid #34a853;cursor:default}
+.btn-advance.ready{background:#005BBB;color:white}
+.btn-advance.ready:hover{background:#003f8a}
+.btn-advance.locked-btn{background:#FFFBE6;color:#005BBB;border:1px solid #FFD500;cursor:default}
 .btn-advance.disabled{background:#f0f0f0;color:#aaa;cursor:not-allowed}
 .prog-text{font-size:12px;color:#666}
 .prog-text.warn{color:#e65100}
@@ -70,8 +70,8 @@ header p{font-size:14px;color:#666}
 /* 3rd place */
 .thirds-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin-top:4px}
 .third-select{padding:7px 10px;border:1px solid #d0d0d0;border-radius:7px;font-size:13px;color:#1a1a1a;background:white;width:100%}
-.third-select:focus{outline:none;border-color:#1a73e8}
-.third-select.filled{border-color:#34a853;background:#f6fef8}
+.third-select:focus{outline:none;border-color:#005BBB}
+.third-select.filled{border-color:#005BBB;background:#E8F0FB}
 .third-select.blocked{border-color:#fca5a5;background:#fef2f2;color:#991b1b}
 .section-label{font-size:12px;font-weight:600;color:#444;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px}
 /* Champion */
@@ -82,31 +82,31 @@ header p{font-size:14px;color:#666}
 .champ-icon{font-size:36px;margin-bottom:8px}
 /* Submit */
 .submit-section{margin-top:28px;text-align:center}
-.btn-submit{padding:14px 40px;font-size:16px;font-weight:600;background:#1a73e8;color:white;border:none;border-radius:10px;cursor:pointer;transition:background .15s}
-.btn-submit:hover{background:#1558b0}
+.btn-submit{padding:14px 40px;font-size:16px;font-weight:600;background:#005BBB;color:white;border:none;border-radius:10px;cursor:pointer;transition:background .15s}
+.btn-submit:hover{background:#003f8a}
 .btn-submit:disabled{background:#ccc;cursor:not-allowed}
-.btn-save-pdf{padding:10px 24px;font-size:14px;font-weight:500;background:white;color:#1a73e8;border:1.5px solid #1a73e8;border-radius:10px;cursor:pointer;transition:all .15s;margin-top:10px}
-.btn-save-pdf:hover{background:#E8F0FE}
+.btn-save-pdf{padding:10px 24px;font-size:14px;font-weight:500;background:white;color:#005BBB;border:1.5px solid #005BBB;border-radius:10px;cursor:pointer;transition:all .15s;margin-top:10px}
+.btn-save-pdf:hover{background:#E8F0FB}
 .btn-save-pdf:disabled{opacity:.4;cursor:not-allowed}
 .submit-note{font-size:12px;color:#888;margin-top:8px}
-.progress-summary{background:#f8f8f8;border:1px solid #e0e0e0;border-radius:10px;padding:14px 18px;margin-bottom:20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px}
+.progress-summary{background:#E8F0FB;border:1px solid #005BBB;border-radius:10px;padding:14px 18px;margin-bottom:20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px}
 .prog-item{text-align:center}
-.prog-item .count{font-size:18px;font-weight:600;color:#1a73e8}
-.prog-item .count.done{color:#34a853}
+.prog-item .count{font-size:18px;font-weight:600;color:#005BBB}
+.prog-item .count.done{color:#005BBB}
 .prog-item .lbl{font-size:11px;color:#888}
 /* Toast */
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:white;padding:12px 24px;border-radius:8px;font-size:14px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:999}
 .closed-banner{background:#fef2f2;border:1px solid #fca5a5;border-radius:12px;padding:24px;text-align:center;margin-bottom:24px}
 .closed-banner h2{font-size:20px;font-weight:600;color:#991b1b;margin-bottom:8px}
 .closed-banner p{font-size:14px;color:#b91c1c;margin:0}
-.countdown-wrap{background:white;border:1px solid #e0e0e0;border-radius:12px;padding:16px;text-align:center;margin-bottom:24px}
-.countdown-label{font-size:12px;color:#666;margin-bottom:8px;font-weight:500;text-transform:uppercase;letter-spacing:.05em}
+.countdown-wrap{background:#FFD500;border:1px solid #005BBB;border-radius:12px;padding:16px;text-align:center;margin-bottom:24px}
+.countdown-label{font-size:12px;color:#003f8a;margin-bottom:8px;font-weight:500;text-transform:uppercase;letter-spacing:.05em}
 .countdown-timer{display:flex;justify-content:center;gap:16px}
 .cunit{text-align:center}
-.cnum{font-size:28px;font-weight:600;color:#1a1a1a;line-height:1}
+.cnum{font-size:28px;font-weight:600;color:#005BBB;line-height:1}
 .clbl{font-size:11px;color:#888;margin-top:2px}
 .toast.show{opacity:1}
-.toast.success{background:#1e7e34}
+.toast.success{background:#005BBB}
 .toast.error{background:#c62828}
 
 /* ── Live bracket ── */
@@ -115,7 +115,7 @@ header p{font-size:14px;color:#666}
 .bracket-groups-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:6px;margin-bottom:1.5rem}
 .bgrp{background:white;border:1px solid #e0e0e0;border-radius:8px;padding:6px 8px;text-align:center}
 .bgrp-lbl{font-size:10px;font-weight:600;color:#888;text-transform:uppercase;margin-bottom:4px}
-.bgrp-team{font-size:11px;font-weight:500;color:#0F6E56;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bgrp-team{font-size:11px;font-weight:500;color:#005BBB;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bgrp-team.empty{color:#ccc;font-weight:400}
 .bracket-ko{display:flex;align-items:stretch;overflow-x:auto;min-width:600px;gap:0}
 .bko-half{display:flex;flex:1;gap:0}
@@ -126,13 +126,13 @@ header p{font-size:14px;color:#666}
 .bko-col-wrap{display:flex;flex-direction:column;height:100%}
 .bko-matches{display:flex;flex-direction:column;justify-content:space-around;flex:1;gap:4px}
 .bko-match{background:white;border:1px solid #e0e0e0;border-radius:6px;overflow:hidden}
-.bko-team{padding:4px 7px;font-size:11px;font-weight:500;color:#0F6E56;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-bottom:1px solid #f0f0f0}
+.bko-team{padding:4px 7px;font-size:11px;font-weight:500;color:#005BBB;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-bottom:1px solid #f0f0f0}
 .bko-team:last-child{border-bottom:none}
 .bko-team.empty{color:#ccc;font-weight:400}
-.bko-team.winner{background:#FEF3C7;color:#92400E;font-weight:600}
-.bko-champ-box{background:#FEF3C7;border:2px solid #F59E0B;border-radius:8px;padding:8px 10px;text-align:center;width:72px}
+.bko-team.winner{background:#FFD500;color:#003f8a;font-weight:600}
+.bko-champ-box{background:#FFD500;border:2px solid #005BBB;border-radius:8px;padding:8px 10px;text-align:center;width:72px}
 .bko-champ-icon{font-size:18px;margin-bottom:2px}
-.bko-champ-name{font-size:11px;font-weight:700;color:#92400E;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bko-champ-name{font-size:11px;font-weight:700;color:#003f8a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bko-champ-name.empty{color:#ccc;font-weight:400}
 </style>
 </head>
