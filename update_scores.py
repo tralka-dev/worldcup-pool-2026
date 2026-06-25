@@ -16,6 +16,10 @@ Column layout (0-indexed):
 
 Point values:
   GROUP/3RD = 1, R32 = 2, R16 = 3, QF = 4, SF = 5, FINAL = 5, CHAMPION = 7
+
+Scoring rules:
+  Group stage: 1 pt if picked team finished 1st or 2nd (position doesn't matter)
+  Best 3rd:    1 pt if picked team was one of the 8 best 3rd-place advancers (slot doesn't matter)
 """
 
 import os
@@ -83,6 +87,8 @@ def fetch_standings_and_results():
     headers = {"X-Auth-Token": FOOTBALL_API_KEY}
     base = "https://api.football-data.org/v4"
     advanced_teams = set()
+    group_advancers = set()   # teams that finished 1st or 2nd, regardless of position
+    third_advancers = set()   # teams that advanced as one of the best 8 3rd-place teams
     third_place = []
 
     # Group stage standings
@@ -97,6 +103,7 @@ def fetch_standings_and_results():
                 if entry.get("playedGames", 0) > 0:
                     if pos <= 2:
                         advanced_teams.add(("GROUP", team))
+                        group_advancers.add(team)
                     elif pos == 3:
                         third_place.append((
                             entry.get("points", 0),
@@ -110,6 +117,7 @@ def fetch_standings_and_results():
     third_place.sort(reverse=True)
     for _, _, team in third_place[:8]:
         advanced_teams.add(("3RD", team))
+        third_advancers.add(team)
 
     # Knockout results
     try:
@@ -139,7 +147,7 @@ def fetch_standings_and_results():
     except Exception as e:
         print(f"[!] Could not fetch knockout results: {e}")
 
-    return advanced_teams
+    return advanced_teams, group_advancers, third_advancers
 
 
 def get_cell(row, col):
@@ -148,7 +156,7 @@ def get_cell(row, col):
     return None
 
 
-def calculate_scores(picks_rows, advanced_teams):
+def calculate_scores(picks_rows, advanced_teams, group_advancers, third_advancers):
     entries = []
     name_counts = defaultdict(int)
 
@@ -165,13 +173,18 @@ def calculate_scores(picks_rows, advanced_teams):
         count = name_counts[raw_name]
         display_name = raw_name if count == 1 else f"{raw_name} ({count})"
 
-        # ── Group + 3rd place ──
+        # ── Group stage: 1 pt if team advanced (1st or 2nd), position doesn't matter ──
         grp_pts = 0
-        for rnd, col_start, col_end in [("GROUP", 2, 25), ("3RD", 26, 33)]:
-            for col in range(col_start, col_end + 1):
-                team = get_cell(row, col)
-                if team and (rnd, team) in advanced_teams:
-                    grp_pts += POINTS[rnd]
+        for col in range(2, 26):
+            team = get_cell(row, col)
+            if team and team in group_advancers:
+                grp_pts += POINTS["GROUP"]
+
+        # ── Best 3rd: 1 pt if team was one of the 8 advancers, slot doesn't matter ──
+        for col in range(26, 34):
+            team = get_cell(row, col)
+            if team and team in third_advancers:
+                grp_pts += POINTS["3RD"]
 
         # ── Knockout rounds with duplicate protection ──
         round_pts = {"R32": 0, "R16": 0, "QF": 0, "SF": 0, "FINAL": 0}
@@ -196,7 +209,6 @@ def calculate_scores(picks_rows, advanced_teams):
                     round_pts[rnd] += POINTS[rnd]
 
         # ── Final / Champion (col 64) ──
-        # The winner of the Final IS the champion.
         # Award FINAL points if they reached the final, WINNER points if they won it.
         champ_pts = 0
         final_pts = 0
@@ -360,10 +372,10 @@ def main():
     ).execute().get("values", [])
     print(f"[→] {len(picks_rows) - 1} entries loaded")
 
-    advanced = fetch_standings_and_results()
+    advanced, group_advancers, third_advancers = fetch_standings_and_results()
     print(f"[→] {len(advanced)} advancement records fetched")
 
-    entries = calculate_scores(picks_rows, advanced)
+    entries = calculate_scores(picks_rows, advanced, group_advancers, third_advancers)
     update_sheet(service, entries, picks_visible)
     print("[✓] Done!")
 
@@ -392,12 +404,19 @@ def test_mode():
 
     first_row = picks_rows[1]
     fake_advanced = set()
+    group_advancers = set()
+    third_advancers = set()
+
     for col in range(2, 26):
         team = get_cell(first_row, col)
-        if team: fake_advanced.add(("GROUP", team))
+        if team:
+            fake_advanced.add(("GROUP", team))
+            group_advancers.add(team)
     for col in range(26, 34):
         team = get_cell(first_row, col)
-        if team: fake_advanced.add(("3RD", team))
+        if team:
+            fake_advanced.add(("3RD", team))
+            third_advancers.add(team)
     for col in range(34, 50):
         team = get_cell(first_row, col)
         if team: fake_advanced.add(("R32", team))
@@ -416,7 +435,7 @@ def test_mode():
         fake_advanced.add(("WINNER", champ))
 
     print(f"[→] Fake results: {len(fake_advanced)} teams marked as advanced")
-    entries = calculate_scores(picks_rows, fake_advanced)
+    entries = calculate_scores(picks_rows, fake_advanced, group_advancers, third_advancers)
 
     print(f"\n  {'Rank':<5} {'Name':<25} {'Grp':>5} {'R32':>5} {'R16':>5} {'QF':>4} {'SF':>4} {'Fin':>4} {'Chp':>4} {'Tot':>6}")
     print("  " + "-" * 75)
@@ -473,6 +492,9 @@ def custom_test_mode():
         for team in teams:
             fake_advanced.add((rnd, team))
 
+    group_advancers = set(FAKE_RESULTS["GROUP"])
+    third_advancers = set(FAKE_RESULTS["3RD"])
+
     print(f"[→] Fake results: {len(fake_advanced)} advancement records")
 
     creds = Credentials.from_service_account_info(
@@ -492,7 +514,7 @@ def custom_test_mode():
         print("[!] No entries found — submit some picks first!")
         return
 
-    entries = calculate_scores(picks_rows, fake_advanced)
+    entries = calculate_scores(picks_rows, fake_advanced, group_advancers, third_advancers)
 
     print(f"\n  {'Rank':<5} {'Name':<25} {'Grp':>5} {'R32':>5} {'R16':>5} {'QF':>4} {'SF':>4} {'Fin':>4} {'Chp':>4} {'Tot':>6}")
     print("  " + "-" * 75)
