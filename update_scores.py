@@ -70,17 +70,17 @@ TEAM_NAME_MAP = {
     "Bosnia & Herzegovina":    "Bosnia and Herzegovina",
     "Congo DR":                "DR Congo",
     "Czech Republic":          "Czechia",
+    "United States":           "USA",
+    "Turkey":                  "Turkiye",
+    "Cape Verde Islands":      "Cape Verde",
 }
 
 def normalize(name):
     """Normalize a team name from the API to match the entry form spelling."""
-    # Also handle any unicode variants by trying the ASCII-folded version
     result = TEAM_NAME_MAP.get(name, name)
     if result == name:
-        # Try replacing common unicode chars
         ascii_name = name.replace("\u00f4", "o").replace("\u00e9", "e").replace("\u00fc", "u")
         result = TEAM_NAME_MAP.get(ascii_name, name)
-    print(f"[DEBUG] raw='{name}' -> normalized='{result}'")
     return result
 
 
@@ -138,12 +138,11 @@ def fetch_standings_and_results():
 
     # Best 8 third-place teams also qualify for R32
     third_place.sort(reverse=True)
-    print(f"[DEBUG] All 3rd place teams sorted: {third_place}")
     for _, _, team in third_place[:8]:
         advanced_teams.add(("3RD", team))
         r32_qualifiers.add(team)
 
-    print(f"[DEBUG] r32_qualifiers: {sorted(r32_qualifiers)}")
+    print(f"[→] r32_qualifiers: {sorted(r32_qualifiers)}")
 
     # Knockout results
     try:
@@ -470,7 +469,7 @@ def custom_test_mode():
             "Germany", "Ivory Coast",
             "Netherlands", "Japan",
             "Egypt", "Belgium",
-            "Spain", "Uruguay",
+            "Spain", "Cape Verde",
             "France", "Norway",
             "Argentina", "Austria",
             "Portugal", "Colombia",
@@ -478,7 +477,7 @@ def custom_test_mode():
         ],
         "3RD": [
             "Bosnia and Herzegovina", "Scotland", "Paraguay", "Sweden",
-            "Algeria", "Iran", "Cape Verde", "Ecuador",
+            "Algeria", "Iran", "Turkiye", "Ecuador",
         ],
         "R32": [
             "Switzerland", "Brazil", "Germany", "Netherlands",
