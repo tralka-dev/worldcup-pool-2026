@@ -112,7 +112,7 @@ def fetch_standings_and_results():
     r32_qualifiers = set()  # all 32 teams that qualified to R32 (1st, 2nd, or best 3rd)
     third_place = []
 
-    # Group stage standings
+   # Group stage standings
     try:
         r = requests.get(f"{base}/competitions/{WC2026_ID}/standings", headers=headers, timeout=10)
         r.raise_for_status()
@@ -121,20 +121,9 @@ def fetch_standings_and_results():
                 continue
             for entry in group["table"]:
                 pos  = entry["position"]
-                team = normalize(entry["team"]["name"])
-                if entry.get("playedGames", 0) > 0:
-                    if pos <= 2:
-                        advanced_teams.add(("GROUP", team))
-                        r32_qualifiers.add(team)
-                    elif pos == 3:
-                        third_place.append((
-                            entry.get("points", 0),
-                            entry.get("goalDifference", 0),
-                            team
-                        ))
-    except Exception as e:
-        print(f"[!] Could not fetch standings: {e}")
-
+                raw_name = entry["team"]["name"]
+                team = normalize(raw_name)
+                print(f"[DEBUG] pos={pos} raw='{raw_name}' normalized='{team}'")
     # Best 8 third-place teams also qualify for R32
     third_place.sort(reverse=True)
     for _, _, team in third_place[:8]:
