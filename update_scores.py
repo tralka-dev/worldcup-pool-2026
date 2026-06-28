@@ -61,6 +61,25 @@ ROUND_MAP = {
 CHAMPION_COL = 64
 EMAIL_COL    = 65
 
+# Maps API team names → form/sheet team names
+# Add entries here whenever the API uses a different spelling than the entry form
+TEAM_NAME_MAP = {
+    "Korea Republic":          "South Korea",
+    "IR Iran":                 "Iran",
+    "Côte d'Ivoire":           "Ivory Coast",
+    "Cote d'Ivoire":           "Ivory Coast",
+    "Bosnia-Herzegovina":      "Bosnia and Herzegovina",
+    "Bosnia & Herzegovina":    "Bosnia and Herzegovina",
+    "Congo DR":                "DR Congo",
+    "Türkiye":                 "Turkiye",
+    "Czech Republic":          "Czechia",
+}
+
+def normalize(name):
+    """Normalize a team name from the API to match the entry form spelling."""
+    return TEAM_NAME_MAP.get(name, name)
+
+
 SHORT_HEADERS = (
     ["Timestamp", "Entry Name"]
     + [f"Grp {g} {n}" for g in "ABCDEFGHIJKL" for n in ["1st", "2nd"]]
@@ -98,7 +117,8 @@ def fetch_standings_and_results():
             if group.get("type") != "TOTAL":
                 continue
             for entry in group["table"]:
-                pos, team = entry["position"], entry["team"]["name"]
+                pos  = entry["position"]
+                team = normalize(entry["team"]["name"])
                 if entry.get("playedGames", 0) > 0:
                     if pos <= 2:
                         advanced_teams.add(("GROUP", team))
@@ -129,8 +149,8 @@ def fetch_standings_and_results():
             if not stage:
                 continue
             s = match["score"]["fullTime"]
-            home = match["homeTeam"]["name"]
-            away = match["awayTeam"]["name"]
+            home = normalize(match["homeTeam"]["name"])
+            away = normalize(match["awayTeam"]["name"])
             home_score = s.get("home") or 0
             away_score = s.get("away") or 0
             winner = home if home_score > away_score else away
