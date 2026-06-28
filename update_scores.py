@@ -68,11 +68,14 @@ TEAM_NAME_MAP = {
     "IR Iran":                 "Iran",
     "Côte d'Ivoire":           "Ivory Coast",
     "Cote d'Ivoire":           "Ivory Coast",
+    "C\u00f4te d'Ivoire":      "Ivory Coast",
     "Bosnia-Herzegovina":      "Bosnia and Herzegovina",
     "Bosnia & Herzegovina":    "Bosnia and Herzegovina",
     "Congo DR":                "DR Congo",
     "Türkiye":                 "Turkiye",
+    "T\u00fcrkiye":            "Turkiye",
     "Czech Republic":          "Czechia",
+}
 }
 
 def normalize(name):
