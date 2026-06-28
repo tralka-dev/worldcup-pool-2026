@@ -1,4 +1,4 @@
-"""
+"""V2
 World Cup Pool 2026 — Automated Score Updater
 Supports multiple entries per participant.
 
