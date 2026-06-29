@@ -1,6 +1,6 @@
-"""V2
+"""V3
 World Cup Pool 2026 — Automated Score Updater
-Supports multiple entries per participant.
+Data source: openfootball/worldcup.json (free, no API key required)
 
 Column layout (0-indexed):
   Col 0     (A)   = Timestamp
@@ -16,10 +16,6 @@ Column layout (0-indexed):
 
 Point values:
   GROUP/3RD = 1, R32 = 2, R16 = 3, QF = 4, SF = 5, FINAL = 5, CHAMPION = 7
-
-Scoring rules:
-  Group + 3rd picks (cols 2-33): 1 pt for any team that qualified to R32,
-  regardless of whether they finished 1st, 2nd, or as a best 3rd place team.
 """
 
 import os
@@ -30,13 +26,15 @@ from googleapiclient.discovery import build
 from datetime import datetime, timezone
 from collections import defaultdict
 
-FOOTBALL_API_KEY  = os.environ["FOOTBALL_API_KEY"]
 GOOGLE_CREDS_JSON = os.environ["GOOGLE_CREDS_JSON"]
 SPREADSHEET_ID    = os.environ["SPREADSHEET_ID"]
 
-WC2026_ID        = os.environ.get("WC2026_ID", "WC")
 PICKS_VISIBLE    = os.environ.get("PICKS_VISIBLE", "false").lower() == "true"
 TOURNAMENT_START = datetime(2026, 6, 11, tzinfo=timezone.utc)
+
+# openfootball JSON URLs — no API key needed
+GROUP_URL  = "https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json"
+FINALS_URL = "https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup_finals.json"
 
 POINTS = {
     "GROUP":  1,
@@ -49,39 +47,56 @@ POINTS = {
     "WINNER": 7,
 }
 
+# Maps openfootball team names -> entry form spellings
+TEAM_NAME_MAP = {
+    "Bosnia & Herzegovina":  "Bosnia and Herzegovina",
+    "Curaçao":               "Curacao",
+    "Czech Republic":        "Czechia",
+    "IR Iran":               "Iran",
+    "Korea Republic":        "South Korea",
+    "Côte d'Ivoire":         "Ivory Coast",
+    "Ivory Coast":           "Ivory Coast",
+    "Congo DR":              "DR Congo",
+    "United States":         "USA",
+    "Turkey":                "Turkiye",
+    "Cape Verde Islands":    "Cape Verde",
+}
+
+# Maps openfootball round names -> our stage keys
 ROUND_MAP = {
-    "GROUP_STAGE":    "GROUP",
-    "ROUND_OF_32":    "R32",
-    "LAST_16":        "R16",
-    "QUARTER_FINALS": "QF",
-    "SEMI_FINALS":    "SF",
-    "FINAL":          "FINAL",
+    "Round of 32":   "R32",
+    "Round of 16":   "R16",
+    "Quarter-finals": "QF",
+    "Quarter-Final":  "QF",
+    "Semi-finals":    "SF",
+    "Semi-Final":     "SF",
+    "Final":          "FINAL",
 }
 
 CHAMPION_COL = 64
 EMAIL_COL    = 65
 
-# Maps API team names -> form/sheet team names
-TEAM_NAME_MAP = {
-    "Korea Republic":          "South Korea",
-    "IR Iran":                 "Iran",
-    "Cote d'Ivoire":           "Ivory Coast",
-    "Bosnia-Herzegovina":      "Bosnia and Herzegovina",
-    "Bosnia & Herzegovina":    "Bosnia and Herzegovina",
-    "Congo DR":                "DR Congo",
-    "Czech Republic":          "Czechia",
-    "United States":           "USA",
-    "Turkey":                  "Turkiye",
-    "Cape Verde Islands":      "Cape Verde",
+GROUPS = {
+    "Group A": ["Mexico", "South Africa", "South Korea", "Czechia"],
+    "Group B": ["Canada", "Bosnia and Herzegovina", "Qatar", "Switzerland"],
+    "Group C": ["Brazil", "Morocco", "Haiti", "Scotland"],
+    "Group D": ["USA", "Paraguay", "Australia", "Turkiye"],
+    "Group E": ["Germany", "Curacao", "Ivory Coast", "Ecuador"],
+    "Group F": ["Netherlands", "Japan", "Sweden", "Tunisia"],
+    "Group G": ["Belgium", "Egypt", "Iran", "New Zealand"],
+    "Group H": ["Spain", "Cape Verde", "Saudi Arabia", "Uruguay"],
+    "Group I": ["France", "Senegal", "Norway", "Iraq"],
+    "Group J": ["Argentina", "Algeria", "Austria", "Jordan"],
+    "Group K": ["Portugal", "DR Congo", "Uzbekistan", "Colombia"],
+    "Group L": ["England", "Croatia", "Ghana", "Panama"],
 }
 
+
 def normalize(name):
-    """Normalize a team name from the API to match the entry form spelling."""
-    result = TEAM_NAME_MAP.get(name, name)
-    if result == name:
-        ascii_name = name.replace("\u00f4", "o").replace("\u00e9", "e").replace("\u00fc", "u")
-        result = TEAM_NAME_MAP.get(ascii_name, name)
-    return result
+    if not name:
+        return name
+    name = name.strip()
+    return TEAM_NAME_MAP.get(name, name)
 
 
 SHORT_HEADERS = (
@@ -107,68 +122,119 @@ def rename_picks_headers(service):
 
 
 def fetch_standings_and_results():
-    headers = {"X-Auth-Token": FOOTBALL_API_KEY}
-    base = "https://api.football-data.org/v4"
     advanced_teams = set()
     r32_qualifiers = set()
-    third_place = []
 
-    # Group stage standings
+    # ── Group stage ──────────────────────────────────────────────────
+    # Track wins/draws/losses/GD per team to determine 1st/2nd/3rd
+    group_stats = defaultdict(lambda: defaultdict(lambda: {
+        "pts": 0, "gd": 0, "played": 0
+    }))
+
     try:
-        r = requests.get(f"{base}/competitions/{WC2026_ID}/standings", headers=headers, timeout=10)
+        r = requests.get(GROUP_URL, timeout=15)
         r.raise_for_status()
-        for group in r.json().get("standings", []):
-            if group.get("type") != "TOTAL":
-                continue
-            for entry in group["table"]:
-                pos  = entry["position"]
-                team = normalize(entry["team"]["name"])
-                if entry.get("playedGames", 0) > 0:
-                    if pos <= 2:
-                        advanced_teams.add(("GROUP", team))
-                        r32_qualifiers.add(team)
-                    elif pos == 3:
-                        third_place.append((
-                            entry.get("points", 0),
-                            entry.get("goalDifference", 0),
-                            team
-                        ))
-    except Exception as e:
-        print(f"[!] Could not fetch standings: {e}")
+        matches = r.json().get("matches", [])
+        print(f"[→] group stage: {len(matches)} matches fetched")
 
-    # Best 8 third-place teams also qualify for R32
+        for m in matches:
+            if "score" not in m or "ft" not in m.get("score", {}):
+                continue  # not played yet
+            group = m.get("group")
+            if not group:
+                continue
+            t1 = normalize(m["team1"])
+            t2 = normalize(m["team2"])
+            s1, s2 = m["score"]["ft"]
+            group_stats[group][t1]["played"] += 1
+            group_stats[group][t2]["played"] += 1
+            group_stats[group][t1]["gd"] += s1 - s2
+            group_stats[group][t2]["gd"] += s2 - s1
+            if s1 > s2:
+                group_stats[group][t1]["pts"] += 3
+            elif s2 > s1:
+                group_stats[group][t2]["pts"] += 3
+            else:
+                group_stats[group][t1]["pts"] += 1
+                group_stats[group][t2]["pts"] += 1
+
+    except Exception as e:
+        print(f"[!] Could not fetch group stage data: {e}")
+
+    # Determine group positions
+    third_place = []
+    for group, teams in group_stats.items():
+        if not teams:
+            continue
+        ranked = sorted(
+            teams.items(),
+            key=lambda x: (x[1]["pts"], x[1]["gd"]),
+            reverse=True
+        )
+        for i, (team, stats) in enumerate(ranked):
+            if stats["played"] == 0:
+                continue
+            pos = i + 1
+            if pos <= 2:
+                advanced_teams.add(("GROUP", team))
+                r32_qualifiers.add(team)
+            elif pos == 3:
+                third_place.append((stats["pts"], stats["gd"], team))
+
+    # Best 8 third-place teams
     third_place.sort(reverse=True)
     for _, _, team in third_place[:8]:
         advanced_teams.add(("3RD", team))
         r32_qualifiers.add(team)
 
-    print(f"[→] r32_qualifiers: {sorted(r32_qualifiers)}")
+    print(f"[→] r32_qualifiers ({len(r32_qualifiers)}): {sorted(r32_qualifiers)}")
 
-    # Knockout results — fetch all matches, filter by stage
+    # ── Knockout stage ───────────────────────────────────────────────
     try:
-        r = requests.get(f"{base}/competitions/{WC2026_ID}/matches", headers=headers, timeout=10)
+        r = requests.get(FINALS_URL, timeout=15)
         r.raise_for_status()
-        for match in r.json().get("matches", []):
-            if match.get("status") != "FINISHED":
+        matches = r.json().get("matches", [])
+        print(f"[→] knockout stage: {len(matches)} matches fetched")
+
+        knockout_count = 0
+        for m in matches:
+            if "score" not in m or "ft" not in m.get("score", {}):
+                continue  # not played yet
+            round_name = m.get("round", "")
+            stage = ROUND_MAP.get(round_name)
+            if not stage:
+                print(f"[!] Unknown round name: '{round_name}'")
                 continue
-            stage = ROUND_MAP.get(match.get("stage", ""), None)
-            if not stage or stage == "GROUP":  # skip group stage matches
-                continue
-            s = match["score"]["fullTime"]
-            home = normalize(match["homeTeam"]["name"])
-            away = normalize(match["awayTeam"]["name"])
-            home_score = s.get("home") or 0
-            away_score = s.get("away") or 0
-            winner = home if home_score > away_score else away
-            loser  = away if winner == home else home
+            t1 = normalize(m["team1"])
+            t2 = normalize(m["team2"])
+            s1, s2 = m["score"]["ft"]
+
+            # Handle penalty shootout
+            if s1 == s2 and "p" in m.get("score", {}):
+                p1, p2 = m["score"]["p"]
+                winner = t1 if p1 > p2 else t2
+            else:
+                winner = t1 if s1 > s2 else t2
+            loser = t2 if winner == t1 else t1
+
+            print(f"[→] {stage}: {t1} {s1}-{s2} {t2} → winner={winner}")
             advanced_teams.add((stage, winner))
+
+            if stage == "R32":
+                # Both teams get R32 credit (both made it to R32)
+                advanced_teams.add(("R32", loser))
+
             if stage == "FINAL":
+                # Both finalists get FINAL pts; winner gets WINNER pts
                 advanced_teams.add(("FINAL", loser))
                 advanced_teams.add(("WINNER", winner))
-            if stage == "R32":
-                advanced_teams.add(("R32", loser))
+
+            knockout_count += 1
+
+        print(f"[→] knockout matches processed: {knockout_count}")
+
     except Exception as e:
-        print(f"[!] Could not fetch knockout results: {e}")
+        print(f"[!] Could not fetch knockout data: {e}")
 
     return advanced_teams, r32_qualifiers
 
@@ -183,7 +249,7 @@ def calculate_scores(picks_rows, advanced_teams, r32_qualifiers):
     entries = []
     name_counts = defaultdict(int)
 
-    for row in picks_rows[1:]:  # skip header
+    for row in picks_rows[1:]:
         if not row or len(row) < 2 or not row[1]:
             continue
         raw_name = row[1].strip()
@@ -191,7 +257,6 @@ def calculate_scores(picks_rows, advanced_teams, r32_qualifiers):
             continue
 
         email = get_cell(row, EMAIL_COL) or ""
-
         name_counts[raw_name] += 1
         count = name_counts[raw_name]
         display_name = raw_name if count == 1 else f"{raw_name} ({count})"
@@ -206,10 +271,10 @@ def calculate_scores(picks_rows, advanced_teams, r32_qualifiers):
         scored_round_teams = set()
 
         knockout_rounds = [
-            ("R32",   34, 49),
-            ("R16",   50, 57),
-            ("QF",    58, 61),
-            ("SF",    62, 63),
+            ("R32", 34, 49),
+            ("R16", 50, 57),
+            ("QF",  58, 61),
+            ("SF",  62, 63),
         ]
         for rnd, col_start, col_end in knockout_rounds:
             for col in range(col_start, col_end + 1):
@@ -394,67 +459,6 @@ def main():
     print("[✓] Done!")
 
 
-def test_mode():
-    print("=" * 60)
-    print("[TEST MODE] Using fake results — no API calls made")
-    print("=" * 60)
-
-    creds = Credentials.from_service_account_info(
-        json.loads(os.environ["GOOGLE_CREDS_JSON"]),
-        scopes=["https://www.googleapis.com/auth/spreadsheets"]
-    )
-    service = build("sheets", "v4", credentials=creds)
-    rename_picks_headers(service)
-
-    picks_rows = service.spreadsheets().values().get(
-        spreadsheetId=os.environ["SPREADSHEET_ID"],
-        range="Picks!A1:BP500"
-    ).execute().get("values", [])
-    print(f"[→] {len(picks_rows) - 1} entries loaded")
-
-    if len(picks_rows) < 2:
-        print("[!] No entries found — add a test entry via the form first!")
-        return
-
-    first_row = picks_rows[1]
-    fake_advanced = set()
-    r32_qualifiers = set()
-
-    for col in range(2, 34):
-        team = get_cell(first_row, col)
-        if team:
-            fake_advanced.add(("GROUP", team))
-            r32_qualifiers.add(team)
-    for col in range(34, 50):
-        team = get_cell(first_row, col)
-        if team: fake_advanced.add(("R32", team))
-    for col in range(50, 58):
-        team = get_cell(first_row, col)
-        if team: fake_advanced.add(("R16", team))
-    for col in range(58, 62):
-        team = get_cell(first_row, col)
-        if team: fake_advanced.add(("QF", team))
-    for col in range(62, 64):
-        team = get_cell(first_row, col)
-        if team: fake_advanced.add(("SF", team))
-    champ = get_cell(first_row, CHAMPION_COL)
-    if champ:
-        fake_advanced.add(("FINAL", champ))
-        fake_advanced.add(("WINNER", champ))
-
-    print(f"[→] Fake results: {len(fake_advanced)} teams marked as advanced")
-    entries = calculate_scores(picks_rows, fake_advanced, r32_qualifiers)
-
-    print(f"\n  {'Rank':<5} {'Name':<25} {'Grp':>5} {'R32':>5} {'R16':>5} {'QF':>4} {'SF':>4} {'Fin':>4} {'Chp':>4} {'Tot':>6}")
-    print("  " + "-" * 75)
-    for i, e in enumerate(entries):
-        print(f"  {i+1:<5} {e['name']:<25} {e['group']:>5} {e['r32']:>5} {e['r16']:>5} {e['qf']:>4} {e['sf']:>4} {e['final']:>4} {e['champion']:>4} {e['total']:>6}")
-
-    print("\n[→] Writing test results to Leaderboard tab...")
-    update_sheet(service, entries, picks_visible=True)
-    print("[✓] Test complete! First entry should have a perfect score.")
-
-
 def custom_test_mode():
     print("=" * 60)
     print("[CUSTOM TEST MODE] Using manually defined fake results")
@@ -485,10 +489,8 @@ def custom_test_mode():
             "Paraguay", "Egypt", "Colombia", "Portugal",
             "Canada", "Argentina", "England", "Morocco",
         ],
-        "R16": [
-            "Brazil", "Netherlands", "France", "Spain",
-            "Argentina", "Portugal", "England", "Germany",
-        ],
+        "R16": ["Brazil", "Netherlands", "France", "Spain",
+                "Argentina", "Portugal", "England", "Germany"],
         "QF":     ["Brazil", "France", "Argentina", "England"],
         "SF":     ["Brazil", "Argentina"],
         "FINAL":  ["Brazil", "Argentina"],
@@ -497,16 +499,13 @@ def custom_test_mode():
 
     fake_advanced = set()
     r32_qualifiers = set()
-
     for rnd, teams in FAKE_RESULTS.items():
         for team in teams:
             fake_advanced.add((rnd, team))
-
     for team in FAKE_RESULTS["GROUP"] + FAKE_RESULTS["3RD"]:
         r32_qualifiers.add(team)
 
     print(f"[→] Fake results: {len(fake_advanced)} advancement records")
-    print(f"[→] {len(r32_qualifiers)} teams in R32")
 
     creds = Credentials.from_service_account_info(
         json.loads(os.environ["GOOGLE_CREDS_JSON"]),
@@ -539,9 +538,7 @@ def custom_test_mode():
 
 if __name__ == "__main__":
     import sys
-    if len(sys.argv) > 1 and sys.argv[1] == "test":
-        test_mode()
-    elif len(sys.argv) > 1 and sys.argv[1] == "custom":
+    if len(sys.argv) > 1 and sys.argv[1] == "custom":
         custom_test_mode()
     else:
         main()
