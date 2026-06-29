@@ -1,7 +1,7 @@
 name: Update World Cup Scores
 on:
   schedule:
-    - cron: '0 * * * *'  # runs every hour
+    - cron: '0 * * * *'  # runs every hour - v2
   workflow_dispatch:       # allows manual runs
 jobs:
   update:
