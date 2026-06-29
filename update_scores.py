@@ -1,4 +1,4 @@
-"""V4
+"""V4.1
 World Cup Pool 2026 — Automated Score Updater
 Data source: openfootball/worldcup.json (free, no API key required)
 
