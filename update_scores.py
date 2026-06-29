@@ -1,4 +1,4 @@
-"""V3
+"""V4
 World Cup Pool 2026 — Automated Score Updater
 Data source: openfootball/worldcup.json (free, no API key required)
 
@@ -32,9 +32,8 @@ SPREADSHEET_ID    = os.environ["SPREADSHEET_ID"]
 PICKS_VISIBLE    = os.environ.get("PICKS_VISIBLE", "false").lower() == "true"
 TOURNAMENT_START = datetime(2026, 6, 11, tzinfo=timezone.utc)
 
-# openfootball JSON URLs — no API key needed
-GROUP_URL  = "https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json"
-FINALS_URL = "https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup_finals.json"
+# All matches (group + knockout) are in one file
+DATA_URL = "https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json"
 
 POINTS = {
     "GROUP":  1,
@@ -55,7 +54,6 @@ TEAM_NAME_MAP = {
     "IR Iran":               "Iran",
     "Korea Republic":        "South Korea",
     "Côte d'Ivoire":         "Ivory Coast",
-    "Ivory Coast":           "Ivory Coast",
     "Congo DR":              "DR Congo",
     "United States":         "USA",
     "Turkey":                "Turkiye",
@@ -66,30 +64,13 @@ TEAM_NAME_MAP = {
 ROUND_MAP = {
     "Round of 32":   "R32",
     "Round of 16":   "R16",
-    "Quarter-finals": "QF",
-    "Quarter-Final":  "QF",
-    "Semi-finals":    "SF",
-    "Semi-Final":     "SF",
-    "Final":          "FINAL",
+    "Quarter-final": "QF",
+    "Semi-final":    "SF",
+    "Final":         "FINAL",
 }
 
 CHAMPION_COL = 64
 EMAIL_COL    = 65
-
-GROUPS = {
-    "Group A": ["Mexico", "South Africa", "South Korea", "Czechia"],
-    "Group B": ["Canada", "Bosnia and Herzegovina", "Qatar", "Switzerland"],
-    "Group C": ["Brazil", "Morocco", "Haiti", "Scotland"],
-    "Group D": ["USA", "Paraguay", "Australia", "Turkiye"],
-    "Group E": ["Germany", "Curacao", "Ivory Coast", "Ecuador"],
-    "Group F": ["Netherlands", "Japan", "Sweden", "Tunisia"],
-    "Group G": ["Belgium", "Egypt", "Iran", "New Zealand"],
-    "Group H": ["Spain", "Cape Verde", "Saudi Arabia", "Uruguay"],
-    "Group I": ["France", "Senegal", "Norway", "Iraq"],
-    "Group J": ["Argentina", "Algeria", "Austria", "Jordan"],
-    "Group K": ["Portugal", "DR Congo", "Uzbekistan", "Colombia"],
-    "Group L": ["England", "Croatia", "Ghana", "Panama"],
-}
 
 
 def normalize(name):
@@ -124,48 +105,80 @@ def rename_picks_headers(service):
 def fetch_standings_and_results():
     advanced_teams = set()
     r32_qualifiers = set()
-
-    # ── Group stage ──────────────────────────────────────────────────
-    # Track wins/draws/losses/GD per team to determine 1st/2nd/3rd
-    group_stats = defaultdict(lambda: defaultdict(lambda: {
-        "pts": 0, "gd": 0, "played": 0
-    }))
+    group_stats = defaultdict(lambda: defaultdict(lambda: {"pts": 0, "gd": 0, "played": 0}))
 
     try:
-        r = requests.get(GROUP_URL, timeout=15)
+        r = requests.get(DATA_URL, timeout=15)
         r.raise_for_status()
         matches = r.json().get("matches", [])
-        print(f"[→] group stage: {len(matches)} matches fetched")
+        print(f"[→] total matches fetched: {len(matches)}")
 
+        knockout_count = 0
         for m in matches:
             if "score" not in m or "ft" not in m.get("score", {}):
                 continue  # not played yet
+
+            round_name = m.get("round", "")
             group = m.get("group")
-            if not group:
+
+            # Skip placeholder matches (teams not yet known e.g. "W85")
+            t1_raw = m.get("team1", "")
+            t2_raw = m.get("team2", "")
+            if not t1_raw or not t2_raw or t1_raw.startswith("W") and len(t1_raw) <= 3:
                 continue
-            t1 = normalize(m["team1"])
-            t2 = normalize(m["team2"])
+
+            t1 = normalize(t1_raw)
+            t2 = normalize(t2_raw)
             s1, s2 = m["score"]["ft"]
-            group_stats[group][t1]["played"] += 1
-            group_stats[group][t2]["played"] += 1
-            group_stats[group][t1]["gd"] += s1 - s2
-            group_stats[group][t2]["gd"] += s2 - s1
-            if s1 > s2:
-                group_stats[group][t1]["pts"] += 3
-            elif s2 > s1:
-                group_stats[group][t2]["pts"] += 3
+
+            if group:
+                # Group stage match
+                group_stats[group][t1]["played"] += 1
+                group_stats[group][t2]["played"] += 1
+                group_stats[group][t1]["gd"] += s1 - s2
+                group_stats[group][t2]["gd"] += s2 - s1
+                if s1 > s2:
+                    group_stats[group][t1]["pts"] += 3
+                elif s2 > s1:
+                    group_stats[group][t2]["pts"] += 3
+                else:
+                    group_stats[group][t1]["pts"] += 1
+                    group_stats[group][t2]["pts"] += 1
+
             else:
-                group_stats[group][t1]["pts"] += 1
-                group_stats[group][t2]["pts"] += 1
+                # Knockout match
+                stage = ROUND_MAP.get(round_name)
+                if not stage:
+                    print(f"[!] Unknown round name: '{round_name}'")
+                    continue
+
+                # Handle penalty shootout
+                if s1 == s2 and "p" in m.get("score", {}):
+                    p1, p2 = m["score"]["p"]
+                    winner = t1 if p1 > p2 else t2
+                else:
+                    winner = t1 if s1 > s2 else t2
+                loser = t2 if winner == t1 else t1
+
+                print(f"[→] {stage}: {t1} {s1}-{s2} {t2} → winner={winner}")
+                advanced_teams.add((stage, winner))
+
+                if stage == "R32":
+                    advanced_teams.add(("R32", loser))
+                if stage == "FINAL":
+                    advanced_teams.add(("FINAL", loser))
+                    advanced_teams.add(("WINNER", winner))
+
+                knockout_count += 1
+
+        print(f"[→] knockout matches processed: {knockout_count}")
 
     except Exception as e:
-        print(f"[!] Could not fetch group stage data: {e}")
+        print(f"[!] Could not fetch data: {e}")
 
     # Determine group positions
     third_place = []
     for group, teams in group_stats.items():
-        if not teams:
-            continue
         ranked = sorted(
             teams.items(),
             key=lambda x: (x[1]["pts"], x[1]["gd"]),
@@ -188,54 +201,6 @@ def fetch_standings_and_results():
         r32_qualifiers.add(team)
 
     print(f"[→] r32_qualifiers ({len(r32_qualifiers)}): {sorted(r32_qualifiers)}")
-
-    # ── Knockout stage ───────────────────────────────────────────────
-    try:
-        r = requests.get(FINALS_URL, timeout=15)
-        r.raise_for_status()
-        matches = r.json().get("matches", [])
-        print(f"[→] knockout stage: {len(matches)} matches fetched")
-
-        knockout_count = 0
-        for m in matches:
-            if "score" not in m or "ft" not in m.get("score", {}):
-                continue  # not played yet
-            round_name = m.get("round", "")
-            stage = ROUND_MAP.get(round_name)
-            if not stage:
-                print(f"[!] Unknown round name: '{round_name}'")
-                continue
-            t1 = normalize(m["team1"])
-            t2 = normalize(m["team2"])
-            s1, s2 = m["score"]["ft"]
-
-            # Handle penalty shootout
-            if s1 == s2 and "p" in m.get("score", {}):
-                p1, p2 = m["score"]["p"]
-                winner = t1 if p1 > p2 else t2
-            else:
-                winner = t1 if s1 > s2 else t2
-            loser = t2 if winner == t1 else t1
-
-            print(f"[→] {stage}: {t1} {s1}-{s2} {t2} → winner={winner}")
-            advanced_teams.add((stage, winner))
-
-            if stage == "R32":
-                # Both teams get R32 credit (both made it to R32)
-                advanced_teams.add(("R32", loser))
-
-            if stage == "FINAL":
-                # Both finalists get FINAL pts; winner gets WINNER pts
-                advanced_teams.add(("FINAL", loser))
-                advanced_teams.add(("WINNER", winner))
-
-            knockout_count += 1
-
-        print(f"[→] knockout matches processed: {knockout_count}")
-
-    except Exception as e:
-        print(f"[!] Could not fetch knockout data: {e}")
-
     return advanced_teams, r32_qualifiers
 
 
