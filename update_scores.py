@@ -201,6 +201,7 @@ def fetch_standings_and_results():
         r32_qualifiers.add(team)
 
     print(f"[→] r32_qualifiers ({len(r32_qualifiers)}): {sorted(r32_qualifiers)}")
+    print(f"[→] R32 winners: {sorted([t for stage,t in advanced_teams if stage=='R32'])}")
     return advanced_teams, r32_qualifiers
 
 
