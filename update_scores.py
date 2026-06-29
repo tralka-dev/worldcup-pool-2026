@@ -115,7 +115,7 @@ def fetch_standings_and_results():
 
     # Group stage standings
     try:
-        r = requests.get(f"{base}/competitions/{WC2026_ID}/matches", headers=headers, timeout=10)
+        r = requests.get(f"{base}/competitions/{WC2026_ID}/standings", headers=headers, timeout=10)
         r.raise_for_status()
         for group in r.json().get("standings", []):
             if group.get("type") != "TOTAL":
@@ -144,15 +144,15 @@ def fetch_standings_and_results():
 
     print(f"[→] r32_qualifiers: {sorted(r32_qualifiers)}")
 
-    # Knockout results
+    # Knockout results — fetch all matches, filter by stage
     try:
-        r = requests.get(f"{base}/competitions/{WC2026_ID}/matches?stage=KNOCKOUT", headers=headers, timeout=10)
+        r = requests.get(f"{base}/competitions/{WC2026_ID}/matches", headers=headers, timeout=10)
         r.raise_for_status()
         for match in r.json().get("matches", []):
             if match.get("status") != "FINISHED":
                 continue
             stage = ROUND_MAP.get(match.get("stage", ""), None)
-            if not stage:
+            if not stage or stage == "GROUP":  # skip group stage matches
                 continue
             s = match["score"]["fullTime"]
             home = normalize(match["homeTeam"]["name"])
