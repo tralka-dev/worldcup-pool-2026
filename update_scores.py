@@ -124,7 +124,9 @@ def fetch_standings_and_results():
             # Skip placeholder matches (teams not yet known e.g. "W85")
             t1_raw = m.get("team1", "")
             t2_raw = m.get("team2", "")
-            if not t1_raw or not t2_raw or t1_raw.startswith("W") and len(t1_raw) <= 3:
+            def is_placeholder(name):
+                return not name or (name.startswith("W") and len(name) <= 3)
+            if is_placeholder(t1_raw) or is_placeholder(t2_raw):
                 continue
 
             t1 = normalize(t1_raw)
