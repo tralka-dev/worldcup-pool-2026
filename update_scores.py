@@ -163,8 +163,6 @@ def fetch_standings_and_results():
                 print(f"[→] {stage}: {t1} {s1}-{s2} {t2} → winner={winner}")
                 advanced_teams.add((stage, winner))
 
-                if stage == "R32":
-                    advanced_teams.add(("R32", loser))
                 if stage == "FINAL":
                     advanced_teams.add(("FINAL", loser))
                     advanced_teams.add(("WINNER", winner))
