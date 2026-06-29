@@ -264,8 +264,10 @@ def calculate_scores(picks_rows, advanced_teams, r32_qualifiers):
                 champ_pts = POINTS["WINNER"]
 
         total = grp_pts + sum(round_pts.values()) + final_pts + champ_pts
-        if "Andrew Tkachenko" in display_name:
+        if "Andrew" in display_name or "ndrew" in display_name:
             print(f"[DEBUG] {display_name}: grp={grp_pts} r32={round_pts['R32']} total={total} r32_picks={[get_cell(row,c) for c in range(34,50)]}")
+        if round_pts["R32"] > 4:
+            print(f"[DEBUG HIGH R32] {display_name}: r32={round_pts['R32']} picks={[get_cell(row,c) for c in range(34,50)]}")
 
         entries.append({
             "name":          display_name,
