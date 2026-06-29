@@ -115,7 +115,7 @@ def fetch_standings_and_results():
 
     # Group stage standings
     try:
-        r = requests.get(f"{base}/competitions/{WC2026_ID}/standings", headers=headers, timeout=10)
+        r = requests.get(f"{base}/competitions/{WC2026_ID}/matches", headers=headers, timeout=10)
         r.raise_for_status()
         for group in r.json().get("standings", []):
             if group.get("type") != "TOTAL":
