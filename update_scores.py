@@ -154,12 +154,22 @@ def fetch_standings_and_results():
                     print(f"[!] Unknown round name: '{round_name}'")
                     continue
 
-                # Handle penalty shootout
-                if s1 == s2 and "p" in m.get("score", {}):
-                    p1, p2 = m["score"]["p"]
+                # Determine winner: extra time > penalties > full time
+                score = m.get("score", {})
+                if "et" in score:
+                    # Extra time score is decisive
+                    et1, et2 = score["et"]
+                    winner = t1 if et1 > et2 else t2
+                elif "p" in score:
+                    # Penalty shootout
+                    p1, p2 = score["p"]
                     winner = t1 if p1 > p2 else t2
-                else:
+                elif s1 != s2:
+                    # Normal time winner
                     winner = t1 if s1 > s2 else t2
+                else:
+                    # Still a draw, no result yet — skip
+                    continue
                 loser = t2 if winner == t1 else t1
 
                 print(f"[→] {stage}: {t1} {s1}-{s2} {t2} → winner={winner}")
