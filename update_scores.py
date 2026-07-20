@@ -36,13 +36,6 @@ TOURNAMENT_START = datetime(2026, 6, 11, tzinfo=timezone.utc)
 DATA_URL = "https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json"
 
 # Manual overrides — add results here when openfootball is behind
-[
-    ("FINAL",  "Spain"),
-    ("FINAL",  "Argentina"),
-    ("WINNER", "Spain"),
-]
-Step 4 — Commit and run manually
-What does the current MANUAL_RESULTS line look like in GitHub right now?
 # Set to [] when not needed
 MANUAL_RESULTS = [
     ("FINAL",  "Spain"),
@@ -229,6 +222,12 @@ def fetch_standings_and_results():
     for item in MANUAL_RESULTS:
         advanced_teams.add(item)
         print(f"[→] Manual override: {item}")
+
+    # Final result hardcoded — Spain 1-0 Argentina
+    advanced_teams.add(("FINAL", "Spain"))
+    advanced_teams.add(("FINAL", "Argentina"))
+    advanced_teams.add(("WINNER", "Spain"))
+    print("[→] Final result applied: Spain 1-0 Argentina")
 
     print(f"[→] r32_qualifiers ({len(r32_qualifiers)}): {sorted(r32_qualifiers)}")
     return advanced_teams, r32_qualifiers
