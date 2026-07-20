@@ -35,6 +35,14 @@ TOURNAMENT_START = datetime(2026, 6, 11, tzinfo=timezone.utc)
 # All matches (group + knockout) are in one file
 DATA_URL = "https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json"
 
+# Manual overrides — add results here when openfootball is behind
+# Set to [] when not needed
+MANUAL_RESULTS = [
+    ("FINAL",  "Spain"),
+    ("FINAL",  "Argentina"),  # finalist also gets FINAL pts
+    ("WINNER", "Spain"),
+]
+
 POINTS = {
     "GROUP":  1,
     "3RD":    1,
@@ -209,6 +217,11 @@ def fetch_standings_and_results():
     for _, _, team in third_place[:8]:
         advanced_teams.add(("3RD", team))
         r32_qualifiers.add(team)
+
+    # Apply manual overrides
+    for item in MANUAL_RESULTS:
+        advanced_teams.add(item)
+        print(f"[→] Manual override: {item}")
 
     print(f"[→] r32_qualifiers ({len(r32_qualifiers)}): {sorted(r32_qualifiers)}")
     return advanced_teams, r32_qualifiers
