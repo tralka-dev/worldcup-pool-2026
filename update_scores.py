@@ -36,6 +36,13 @@ TOURNAMENT_START = datetime(2026, 6, 11, tzinfo=timezone.utc)
 DATA_URL = "https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json"
 
 # Manual overrides — add results here when openfootball is behind
+[
+    ("FINAL",  "Spain"),
+    ("FINAL",  "Argentina"),
+    ("WINNER", "Spain"),
+]
+Step 4 — Commit and run manually
+What does the current MANUAL_RESULTS line look like in GitHub right now?
 # Set to [] when not needed
 MANUAL_RESULTS = [
     ("FINAL",  "Spain"),
