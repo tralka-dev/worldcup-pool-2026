@@ -50,7 +50,7 @@ POINTS = {
     "R16":    3,
     "QF":     4,
     "SF":     5,
-    "FINAL":  5,
+    "FINAL":  0,  # SF already awards 5 pts for finalists
     "WINNER": 7,
 }
 
